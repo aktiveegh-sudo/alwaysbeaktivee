@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { formatWhatsAppLink } from "@/lib/store-utils";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface ProductCardProps {
   name: string;
@@ -23,6 +24,7 @@ const ProductCard = ({
 }: ProductCardProps) => {
   const productUrl = `${window.location.origin}/${storeSlug}/${slug}`;
   const whatsappLink = formatWhatsAppLink(whatsappNumber, name, productUrl);
+  const { formatPrice } = useCurrency();
 
   return (
     <div className="rounded-[10px] border border-border bg-card overflow-hidden">
@@ -42,7 +44,7 @@ const ProductCard = ({
           <h3 className="font-medium text-foreground">{name}</h3>
         </Link>
         <p className="mt-1 text-sm text-muted-foreground">
-          {requestPrice ? "Request Price" : price != null ? `$${price.toFixed(2)}` : "Request Price"}
+          {requestPrice ? "Request Price" : formatPrice(price)}
         </p>
         <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="mt-3 block">
           <Button className="w-full" size="sm">Order on WhatsApp</Button>

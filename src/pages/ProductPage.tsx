@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import BuiltWithAktivee from "@/components/BuiltWithAktivee";
 import { formatWhatsAppLink } from "@/lib/store-utils";
+import { useCurrency } from "@/hooks/useCurrency";
 import Footer from "@/components/Footer";
 
 const ProductPage = () => {
@@ -12,9 +13,10 @@ const ProductPage = () => {
   const [store, setStore] = useState<any>(null);
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { formatPrice } = useCurrency();
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       const { data: storeData } = await supabase
         .from("stores")
         .select("*")
@@ -34,7 +36,7 @@ const ProductPage = () => {
       setLoading(false);
     };
 
-    if (storename && productSlug) fetch();
+    if (storename && productSlug) fetchData();
   }, [storename, productSlug]);
 
   if (loading) {
@@ -70,7 +72,7 @@ const ProductPage = () => {
           <div className="mt-6">
             <h1 className="text-2xl font-bold text-foreground">{product.name}</h1>
             <p className="mt-2 text-lg text-muted-foreground">
-              {product.request_price ? "Request Price" : product.price != null ? `$${Number(product.price).toFixed(2)}` : "Request Price"}
+              {product.request_price ? "Request Price" : formatPrice(product.price)}
             </p>
             {product.description && (
               <p className="mt-4 text-sm text-muted-foreground leading-relaxed">{product.description}</p>

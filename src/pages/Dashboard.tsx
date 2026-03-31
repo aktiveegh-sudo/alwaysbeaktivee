@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +16,8 @@ import { toast } from "sonner";
 type Tab = "overview" | "products" | "settings" | "share";
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
+  const { formatPrice } = useCurrency();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
   const [store, setStore] = useState<any>(null);
@@ -93,7 +95,7 @@ const Dashboard = () => {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!store) return;
+    if (!store || !session) return;
     setSaving(true);
 
     let imageUrl: string | null = null;
@@ -111,14 +113,19 @@ const Dashboard = () => {
     };
     if (imageUrl) productData.image_url = imageUrl;
 
-    if (editingProduct) {
-      const { error } = await supabase.from("products").update(productData).eq("id", editingProduct);
-      if (error) toast.error(error.message);
-      else toast.success("Product updated");
+    const action = editingProduct ? "update" : "create";
+    if (editingProduct) productData.id = editingProduct;
+
+    const { data: result, error } = await supabase.functions.invoke("manage-product", {
+      body: { action, data: productData },
+    });
+
+    if (error) {
+      toast.error(error.message || "Failed to save product");
+    } else if (result?.error) {
+      toast.error(result.error);
     } else {
-      const { error } = await supabase.from("products").insert(productData);
-      if (error) toast.error(error.message);
-      else toast.success("Product added");
+      toast.success(editingProduct ? "Product updated" : "Product added");
     }
 
     resetProductForm();
@@ -144,9 +151,12 @@ const Dashboard = () => {
   };
 
   const handleDeleteProduct = async (id: string) => {
-    const { error } = await supabase.from("products").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else {
+    const { data: result, error } = await supabase.functions.invoke("manage-product", {
+      body: { action: "delete", data: { id } },
+    });
+    if (error || result?.error) {
+      toast.error(result?.error || error?.message || "Delete failed");
+    } else {
       toast.success("Product deleted");
       fetchData();
     }
@@ -154,25 +164,32 @@ const Dashboard = () => {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!store) return;
+    if (!store || !session) return;
     setSaving(true);
 
-    const { error } = await supabase.from("stores").update({
-      name: sName,
-      description: sDesc,
-      whatsapp_number: sWhatsapp,
-      business_hours_open: sOpen,
-      business_hours_close: sClose,
-      email: sEmail || null,
-      location: sLocation || null,
-      instagram: sInstagram || null,
-      twitter: sTwitter || null,
-      tiktok: sTiktok || null,
-    }).eq("id", store.id);
+    const { data: result, error } = await supabase.functions.invoke("manage-store", {
+      body: {
+        action: "update",
+        data: {
+          id: store.id,
+          name: sName,
+          description: sDesc,
+          whatsapp_number: sWhatsapp,
+          business_hours_open: sOpen,
+          business_hours_close: sClose,
+          email: sEmail || null,
+          location: sLocation || null,
+          instagram: sInstagram || null,
+          twitter: sTwitter || null,
+          tiktok: sTiktok || null,
+        },
+      },
+    });
 
     setSaving(false);
-    if (error) toast.error(error.message);
-    else {
+    if (error || result?.error) {
+      toast.error(result?.error || error?.message || "Save failed");
+    } else {
       toast.success("Settings saved");
       fetchData();
     }
@@ -221,7 +238,6 @@ const Dashboard = () => {
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
 
-        {/* Tabs */}
         <div className="mt-6 flex gap-1 border-b border-border">
           {tabs.map((t) => (
             <button
@@ -239,7 +255,6 @@ const Dashboard = () => {
         </div>
 
         <div className="mt-8">
-          {/* OVERVIEW */}
           {tab === "overview" && (
             <div className="space-y-6">
               <div className="rounded-[10px] border border-border p-6">
@@ -273,7 +288,6 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* PRODUCTS */}
           {tab === "products" && (
             <div className="space-y-6">
               <form onSubmit={handleSaveProduct} className="rounded-[10px] border border-border p-6 space-y-4">
@@ -282,7 +296,7 @@ const Dashboard = () => {
                 </h2>
                 <div>
                   <Label>Name</Label>
-                  <Input value={pName} onChange={(e) => setPName(e.target.value)} required />
+                  <Input value={pName} onChange={(e) => setPName(e.target.value)} required maxLength={200} />
                 </div>
                 <div className="flex items-center gap-3">
                   <Switch checked={pRequestPrice} onCheckedChange={setPRequestPrice} />
@@ -290,13 +304,13 @@ const Dashboard = () => {
                 </div>
                 {!pRequestPrice && (
                   <div>
-                    <Label>Price</Label>
-                    <Input type="number" step="0.01" value={pPrice} onChange={(e) => setPPrice(e.target.value)} />
+                    <Label>Price (₵)</Label>
+                    <Input type="number" step="0.01" min="0" max="999999" value={pPrice} onChange={(e) => setPPrice(e.target.value)} />
                   </div>
                 )}
                 <div>
                   <Label>Description</Label>
-                  <Textarea value={pDesc} onChange={(e) => setPDesc(e.target.value)} rows={3} />
+                  <Textarea value={pDesc} onChange={(e) => setPDesc(e.target.value)} rows={3} maxLength={1000} />
                 </div>
                 <div>
                   <Label>Image</Label>
@@ -325,7 +339,7 @@ const Dashboard = () => {
                         <div>
                           <p className="text-sm font-medium text-foreground">{p.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {p.request_price ? "Request Price" : p.price != null ? `$${Number(p.price).toFixed(2)}` : "—"}
+                            {p.request_price ? "Request Price" : formatPrice(p.price)}
                           </p>
                         </div>
                       </div>
@@ -340,20 +354,19 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* SETTINGS */}
           {tab === "settings" && (
             <form onSubmit={handleSaveSettings} className="max-w-md space-y-4">
               <div>
                 <Label>Store name</Label>
-                <Input value={sName} onChange={(e) => setSName(e.target.value)} required />
+                <Input value={sName} onChange={(e) => setSName(e.target.value)} required maxLength={100} />
               </div>
               <div>
                 <Label>Description</Label>
-                <Textarea value={sDesc} onChange={(e) => setSDesc(e.target.value)} rows={3} />
+                <Textarea value={sDesc} onChange={(e) => setSDesc(e.target.value)} rows={3} maxLength={500} />
               </div>
               <div>
                 <Label>WhatsApp number</Label>
-                <Input value={sWhatsapp} onChange={(e) => setSWhatsapp(e.target.value)} required />
+                <Input value={sWhatsapp} onChange={(e) => setSWhatsapp(e.target.value)} required maxLength={20} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -367,23 +380,23 @@ const Dashboard = () => {
               </div>
               <div>
                 <Label>Email (optional)</Label>
-                <Input type="email" value={sEmail} onChange={(e) => setSEmail(e.target.value)} />
+                <Input type="email" value={sEmail} onChange={(e) => setSEmail(e.target.value)} maxLength={255} />
               </div>
               <div>
                 <Label>Location (optional)</Label>
-                <Input value={sLocation} onChange={(e) => setSLocation(e.target.value)} />
+                <Input value={sLocation} onChange={(e) => setSLocation(e.target.value)} maxLength={255} />
               </div>
               <div>
                 <Label>Instagram (optional)</Label>
-                <Input value={sInstagram} onChange={(e) => setSInstagram(e.target.value)} placeholder="@handle" />
+                <Input value={sInstagram} onChange={(e) => setSInstagram(e.target.value)} placeholder="@handle" maxLength={100} />
               </div>
               <div>
                 <Label>Twitter / X (optional)</Label>
-                <Input value={sTwitter} onChange={(e) => setSTwitter(e.target.value)} placeholder="@handle" />
+                <Input value={sTwitter} onChange={(e) => setSTwitter(e.target.value)} placeholder="@handle" maxLength={100} />
               </div>
               <div>
                 <Label>TikTok (optional)</Label>
-                <Input value={sTiktok} onChange={(e) => setSTiktok(e.target.value)} placeholder="@handle" />
+                <Input value={sTiktok} onChange={(e) => setSTiktok(e.target.value)} placeholder="@handle" maxLength={100} />
               </div>
               <Button type="submit" disabled={saving}>
                 {saving ? "Saving..." : "Save Settings"}
@@ -391,7 +404,6 @@ const Dashboard = () => {
             </form>
           )}
 
-          {/* SHARE */}
           {tab === "share" && (
             <div className="max-w-md space-y-4">
               <div className="rounded-[10px] border border-border p-6">
