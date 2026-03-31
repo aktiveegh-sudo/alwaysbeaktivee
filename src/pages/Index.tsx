@@ -5,14 +5,11 @@ import Footer from "@/components/Footer";
 
 const FloatingShapes = () => (
   <div className="pointer-events-none absolute inset-0 overflow-hidden">
-    {/* Circles */}
     <div className="animate-float-1 absolute -top-10 left-[10%] h-64 w-64 rounded-full border border-border/40 opacity-30" />
     <div className="animate-float-2 absolute top-[20%] right-[5%] h-40 w-40 rounded-full bg-muted/50 opacity-40" />
     <div className="animate-float-3 absolute bottom-[30%] left-[5%] h-32 w-32 rounded-full border border-border/30 opacity-25" />
-    {/* Rounded squares */}
     <div className="animate-float-4 absolute top-[60%] right-[15%] h-48 w-48 rounded-3xl border border-border/30 opacity-20 rotate-12" />
     <div className="animate-float-5 absolute top-[10%] left-[50%] h-24 w-24 rounded-2xl bg-lime/5 opacity-50" />
-    {/* Small dots */}
     <div className="animate-float-2 absolute top-[40%] left-[30%] h-3 w-3 rounded-full bg-lime/20" />
     <div className="animate-float-1 absolute top-[70%] right-[40%] h-2 w-2 rounded-full bg-muted-foreground/10" />
     <div className="animate-float-3 absolute top-[15%] left-[70%] h-4 w-4 rounded-full bg-lime/15" />
@@ -33,14 +30,17 @@ const Index = () => {
               🚀 Free to get started
             </span>
           </div>
-          <h1 className="animate-fade-in-up-delay-1 text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-            Is your business{" "}
-            <span className="italic text-lime">aktivee</span>?
+          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
+            <span className="animate-text-reveal inline-block">Is your business</span>{" "}
+            <span className="animate-word-pop inline-block italic text-lime">aktivee</span>
+            <span className="animate-word-pop inline-block italic text-lime">?</span>
           </h1>
-          <p className="animate-fade-in-up-delay-2 mx-auto mt-5 max-w-lg text-lg text-muted-foreground">
-            Create a simple store. Let customers order instantly on WhatsApp.
+          <p className="animate-slide-up-fade mx-auto mt-5 max-w-2xl text-lg text-muted-foreground leading-relaxed">
+            Create a simple store in minutes.{" "}
+            <span className="text-foreground font-medium">No need to pay expensive developers.</span>{" "}
+            Use your link in Instagram bio, TikTok Shop, or anywhere to start receiving WhatsApp orders instantly.
           </p>
-          <div className="animate-fade-in-up-delay-3 mt-8 flex flex-wrap items-center justify-center gap-3">
+          <div className="animate-slide-up-fade-delay-1 mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link to="/start">
               <Button size="lg" className="bg-lime text-lime-foreground hover:bg-lime/90 shadow-sm">
                 Create your store
@@ -49,6 +49,11 @@ const Index = () => {
             <a href="#demo">
               <Button variant="outline" size="lg">View demo</Button>
             </a>
+          </div>
+          <div className="animate-slide-up-fade-delay-2 mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">✓ No coding required</span>
+            <span className="inline-flex items-center gap-1">✓ Free forever</span>
+            <span className="inline-flex items-center gap-1">✓ Ready in 60 seconds</span>
           </div>
         </div>
       </section>
@@ -69,6 +74,34 @@ const Index = () => {
                 </div>
                 <h3 className="mt-4 font-semibold text-foreground">{item.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Use your store anywhere */}
+      <section className="relative border-t border-border py-20 overflow-hidden">
+        <div className="container relative mx-auto px-4">
+          <h2 className="text-center text-2xl font-bold text-foreground">Use your store anywhere</h2>
+          <p className="mx-auto mt-3 max-w-md text-center text-sm text-muted-foreground">
+            One link that works everywhere your customers are.
+          </p>
+          <div className="mt-12 grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              { name: "Instagram bio", icon: "📸" },
+              { name: "TikTok Shop", icon: "🎵" },
+              { name: "WhatsApp status", icon: "💬" },
+              { name: "Facebook page", icon: "👍" },
+              { name: "Direct messages", icon: "✉️" },
+              { name: "QR codes", icon: "📱" },
+            ].map((channel) => (
+              <div
+                key={channel.name}
+                className="group flex flex-col items-center gap-2 rounded-[10px] border border-border p-5 transition-all duration-200 hover:border-lime/40 hover:shadow-sm"
+              >
+                <span className="text-2xl transition-transform duration-200 group-hover:scale-110">{channel.icon}</span>
+                <span className="text-sm font-medium text-foreground text-center">{channel.name}</span>
               </div>
             ))}
           </div>
