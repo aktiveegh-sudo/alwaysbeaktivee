@@ -33,8 +33,8 @@ const App = () => (
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="/:storename" element={<StorePage />} />
-            <Route path="/:storename/:product" element={<ProductPage />} />
             <Route path="/:storename/contact" element={<StoreContact />} />
+            <Route path="/:storename/:product" element={<ProductPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
