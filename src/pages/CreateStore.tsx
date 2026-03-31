@@ -11,7 +11,7 @@ import { generateSlug } from "@/lib/store-utils";
 import { toast } from "sonner";
 
 const CreateStore = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
@@ -22,7 +22,7 @@ const CreateStore = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
+    if (!user || !session) {
       toast.error("Please log in first");
       navigate("/signup");
       return;
@@ -31,23 +31,29 @@ const CreateStore = () => {
     setLoading(true);
     const slug = generateSlug(name);
 
-    const { error } = await supabase.from("stores").insert({
-      user_id: user.id,
-      name,
-      slug,
-      description,
-      whatsapp_number: whatsapp,
-      business_hours_open: openTime,
-      business_hours_close: closeTime,
+    const { data: result, error } = await supabase.functions.invoke("manage-store", {
+      body: {
+        action: "create",
+        data: {
+          name,
+          slug,
+          description,
+          whatsapp_number: whatsapp,
+          business_hours_open: openTime,
+          business_hours_close: closeTime,
+        },
+      },
     });
 
     setLoading(false);
 
     if (error) {
-      if (error.code === "23505") {
+      toast.error(error.message || "Failed to create store");
+    } else if (result?.error) {
+      if (result.code === "23505") {
         toast.error("A store with this name already exists. Try a different name.");
       } else {
-        toast.error(error.message);
+        toast.error(result.error);
       }
     } else {
       toast.success("Store created!");
@@ -78,11 +84,11 @@ const CreateStore = () => {
           <form onSubmit={handleCreate} className="mt-6 space-y-4">
             <div>
               <Label htmlFor="name">Store name</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="My Bakery" required />
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="My Bakery" required maxLength={100} />
             </div>
             <div>
               <Label htmlFor="whatsapp">WhatsApp number (with country code)</Label>
-              <Input id="whatsapp" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="+1234567890" required />
+              <Input id="whatsapp" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="+233XXXXXXXXX" required maxLength={20} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -96,7 +102,7 @@ const CreateStore = () => {
             </div>
             <div>
               <Label htmlFor="desc">Short description</Label>
-              <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="We sell fresh baked goods..." rows={3} />
+              <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="We sell fresh baked goods..." rows={3} maxLength={500} />
             </div>
             <Button type="submit" className="w-full" disabled={loading || !user}>
               {loading ? "Creating..." : "Create Store"}

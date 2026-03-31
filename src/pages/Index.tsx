@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { useCurrency } from "@/hooks/useCurrency";
 
 const FloatingShapes = () => (
   <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -17,6 +18,8 @@ const FloatingShapes = () => (
 );
 
 const Index = () => {
+  const { formatPrice } = useCurrency();
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -46,9 +49,9 @@ const Index = () => {
                 Create your store
               </Button>
             </Link>
-            <a href="#demo">
-              <Button variant="outline" size="lg">View demo</Button>
-            </a>
+            <Link to="/how-it-works">
+              <Button variant="outline" size="lg">How it works</Button>
+            </Link>
           </div>
           <div className="animate-slide-up-fade-delay-2 mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">✓ No coding required</span>
@@ -76,6 +79,11 @@ const Index = () => {
                 <p className="mt-2 text-sm text-muted-foreground">{item.desc}</p>
               </div>
             ))}
+          </div>
+          <div className="mt-8 text-center">
+            <Link to="/how-it-works" className="text-sm text-lime hover:underline font-medium">
+              Learn more →
+            </Link>
           </div>
         </div>
       </section>
@@ -105,6 +113,11 @@ const Index = () => {
               </div>
             ))}
           </div>
+          <div className="mt-8 text-center">
+            <Link to="/use-your-store" className="text-sm text-lime hover:underline font-medium">
+              See all channels →
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -127,6 +140,11 @@ const Index = () => {
               </div>
             ))}
           </div>
+          <div className="mt-8 text-center">
+            <Link to="/features" className="text-sm text-lime hover:underline font-medium">
+              See all features →
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -137,7 +155,7 @@ const Index = () => {
           <div className="animate-scale-in mx-auto mt-12 max-w-md rounded-[10px] border border-border p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-foreground">Sample Store</h3>
+                <h3 className="text-lg font-bold text-foreground">Sample Bakery</h3>
                 <span className="inline-flex items-center gap-1.5 text-sm">
                   <span className="h-2 w-2 rounded-full bg-success" />
                   <span className="text-success">Active Now</span>
@@ -148,13 +166,15 @@ const Index = () => {
             <p className="mt-1 text-xs text-muted-foreground">Open: 08:00 — 18:00</p>
             <div className="mt-6 grid grid-cols-2 gap-3">
               {[
-                { name: "Sourdough Bread", price: "$6.00" },
-                { name: "Croissant", price: "$3.50" },
+                { name: "Sourdough Bread", price: 95, img: "https://images.unsplash.com/photo-1585478259715-876acc5be8fc?w=400&h=400&fit=crop" },
+                { name: "Butter Croissant", price: 45, img: "https://images.unsplash.com/photo-1555507036-ab1f4038024a?w=400&h=400&fit=crop" },
               ].map((p) => (
                 <div key={p.name} className="group rounded-lg border border-border p-3 transition-all duration-200 hover:border-lime/40">
-                  <div className="aspect-square rounded-md bg-muted" />
+                  <div className="aspect-square rounded-md bg-muted overflow-hidden">
+                    <img src={p.img} alt={p.name} className="h-full w-full object-cover" loading="lazy" />
+                  </div>
                   <p className="mt-2 text-sm font-medium text-foreground">{p.name}</p>
-                  <p className="text-xs text-muted-foreground">{p.price}</p>
+                  <p className="text-xs text-muted-foreground">{formatPrice(p.price)}</p>
                   <div className="mt-2 rounded-md bg-lime px-3 py-1.5 text-center text-xs font-medium text-lime-foreground transition-opacity hover:opacity-90">
                     Order on WhatsApp
                   </div>
