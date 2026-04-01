@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { formatWhatsAppGeneral } from "@/lib/store-utils";
 import BuiltWithAktivee from "@/components/BuiltWithAktivee";
-import Footer from "@/components/Footer";
+import StoreFooter from "@/components/StoreFooter";
 
 const StoreContact = () => {
   const { storename } = useParams<{ storename: string }>();
@@ -26,7 +26,10 @@ const StoreContact = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
+          {store.logo_url && (
+            <img src={store.logo_url} alt={store.name} className="h-8 w-8 rounded-full object-cover border border-border" />
+          )}
           <a href={`/${store.slug}`} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             ← Back to {store.name}
           </a>
@@ -36,15 +39,26 @@ const StoreContact = () => {
       <main className="container mx-auto px-4 py-12">
         <div className="mx-auto max-w-sm">
           <h1 className="text-xl font-bold text-foreground">Contact {store.name}</h1>
-          <div className="mt-6 space-y-4">
+          <div className="mt-6 space-y-3">
             <a href={formatWhatsAppGeneral(store.whatsapp_number)} target="_blank" rel="noopener noreferrer">
-              <Button className="w-full">Message on WhatsApp</Button>
+              <Button className="w-full">💬 Message on WhatsApp</Button>
             </a>
-            <div className="rounded-[10px] border border-border p-4 space-y-3">
+            {store.phone_number && (
+              <a href={`tel:${store.phone_number}`}>
+                <Button variant="outline" className="w-full mt-2">📞 Call {store.phone_number}</Button>
+              </a>
+            )}
+            <div className="rounded-[10px] border border-border p-4 space-y-3 mt-4">
               <div>
-                <p className="text-xs text-muted-foreground">Phone</p>
+                <p className="text-xs text-muted-foreground">WhatsApp</p>
                 <p className="text-sm text-foreground">{store.whatsapp_number}</p>
               </div>
+              {store.phone_number && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Phone</p>
+                  <p className="text-sm text-foreground">{store.phone_number}</p>
+                </div>
+              )}
               {store.email && (
                 <div>
                   <p className="text-xs text-muted-foreground">Email</p>
@@ -63,7 +77,7 @@ const StoreContact = () => {
       </main>
 
       <BuiltWithAktivee />
-      <Footer />
+      <StoreFooter store={store} />
     </div>
   );
 };

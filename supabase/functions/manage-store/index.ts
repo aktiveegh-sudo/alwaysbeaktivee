@@ -16,7 +16,6 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    // Verify JWT
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Missing authorization" }), {
@@ -37,7 +36,6 @@ serve(async (req) => {
     const { action, data } = body;
 
     if (action === "create") {
-      // Validate required fields
       if (!data.name || typeof data.name !== "string" || data.name.length > 100) {
         return new Response(JSON.stringify({ error: "Invalid store name" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -54,7 +52,7 @@ serve(async (req) => {
         });
       }
 
-      const { data: store, error } = await supabaseAdmin.from("stores").insert({
+      const insertData: Record<string, unknown> = {
         user_id: user.id,
         name: data.name.trim().slice(0, 100),
         slug: data.slug.trim().slice(0, 100),
@@ -62,7 +60,10 @@ serve(async (req) => {
         whatsapp_number: data.whatsapp_number.trim().slice(0, 20),
         business_hours_open: data.business_hours_open || "09:00",
         business_hours_close: data.business_hours_close || "17:00",
-      }).select().single();
+      };
+      if (data.phone_number) insertData.phone_number = String(data.phone_number).trim().slice(0, 20);
+
+      const { data: store, error } = await supabaseAdmin.from("stores").insert(insertData).select().single();
 
       if (error) {
         return new Response(JSON.stringify({ error: error.message, code: error.code }), {
@@ -82,7 +83,6 @@ serve(async (req) => {
         });
       }
 
-      // Verify ownership
       const { data: existing } = await supabaseAdmin.from("stores").select("user_id").eq("id", data.id).single();
       if (!existing || existing.user_id !== user.id) {
         return new Response(JSON.stringify({ error: "Not authorized" }), {
@@ -92,8 +92,10 @@ serve(async (req) => {
 
       const updateData: Record<string, unknown> = {};
       if (data.name) updateData.name = String(data.name).trim().slice(0, 100);
+      if (data.slug) updateData.slug = String(data.slug).toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 100);
       if (data.description !== undefined) updateData.description = String(data.description || "").slice(0, 500);
       if (data.whatsapp_number) updateData.whatsapp_number = String(data.whatsapp_number).trim().slice(0, 20);
+      if (data.phone_number !== undefined) updateData.phone_number = data.phone_number ? String(data.phone_number).trim().slice(0, 20) : null;
       if (data.business_hours_open) updateData.business_hours_open = data.business_hours_open;
       if (data.business_hours_close) updateData.business_hours_close = data.business_hours_close;
       if (data.email !== undefined) updateData.email = data.email ? String(data.email).trim().slice(0, 255) : null;
@@ -101,6 +103,8 @@ serve(async (req) => {
       if (data.instagram !== undefined) updateData.instagram = data.instagram ? String(data.instagram).trim().slice(0, 100) : null;
       if (data.twitter !== undefined) updateData.twitter = data.twitter ? String(data.twitter).trim().slice(0, 100) : null;
       if (data.tiktok !== undefined) updateData.tiktok = data.tiktok ? String(data.tiktok).trim().slice(0, 100) : null;
+      if (data.custom_greeting !== undefined) updateData.custom_greeting = data.custom_greeting ? String(data.custom_greeting).trim().slice(0, 200) : null;
+      if (data.logo_url !== undefined) updateData.logo_url = data.logo_url ? String(data.logo_url).slice(0, 2000) : null;
 
       const { data: store, error } = await supabaseAdmin.from("stores").update(updateData).eq("id", data.id).select().single();
       if (error) {
