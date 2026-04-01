@@ -21,20 +21,58 @@ export const isStoreActive = (openTime: string, closeTime: string): boolean => {
   if (closeMinutes > openMinutes) {
     return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
   }
-  // Handles overnight hours (e.g., 22:00 - 06:00)
   return currentMinutes >= openMinutes || currentMinutes < closeMinutes;
 };
 
 export const formatWhatsAppLink = (
   phone: string,
   productName: string,
-  productUrl: string
+  productUrl: string,
+  price?: string | null,
+  customGreeting?: string | null,
+  isClosed?: boolean
 ): string => {
-  const message = encodeURIComponent(
-    `Hello, I'd like to order this product:\n\n${productName}\n\nLink: ${productUrl}\n\nMy name is:`
-  );
+  let message = "";
+  if (customGreeting) {
+    message += `${customGreeting}\n\n`;
+  }
+  if (isClosed) {
+    message += `Hello, I know you're currently closed, but I'd like to order:\n\n`;
+  } else {
+    message += `Hello, I want to order:\n\n`;
+  }
+  message += `Product: ${productName}\n`;
+  message += `Price: ${price || "Request Price"}\n`;
+  message += `Quantity: 1\n`;
+  message += `\nLink: ${productUrl}\n`;
+  message += `\nMy name is:\nMy location is:`;
+
   const cleanPhone = phone.replace(/[^0-9]/g, "");
-  return `https://wa.me/${cleanPhone}?text=${message}`;
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+};
+
+export const formatWhatsAppMultiOrder = (
+  phone: string,
+  products: { name: string; price: string }[],
+  customGreeting?: string | null,
+  isClosed?: boolean
+): string => {
+  let message = "";
+  if (customGreeting) {
+    message += `${customGreeting}\n\n`;
+  }
+  if (isClosed) {
+    message += `Hello, I know you're currently closed, but I'd like to order:\n\n`;
+  } else {
+    message += `Hello, I want to order:\n\n`;
+  }
+  products.forEach((p) => {
+    message += `${p.name} – ${p.price}\n`;
+  });
+  message += `\nMy name is:\nMy location is:`;
+
+  const cleanPhone = phone.replace(/[^0-9]/g, "");
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 };
 
 export const formatWhatsAppGeneral = (phone: string): string => {
