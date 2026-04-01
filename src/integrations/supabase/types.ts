@@ -76,18 +76,53 @@ export type Database = {
         }
         Relationships: []
       }
+      store_analytics: {
+        Row: {
+          id: string
+          store_id: string
+          store_views: number
+          updated_at: string
+          whatsapp_clicks: number
+        }
+        Insert: {
+          id?: string
+          store_id: string
+          store_views?: number
+          updated_at?: string
+          whatsapp_clicks?: number
+        }
+        Update: {
+          id?: string
+          store_id?: string
+          store_views?: number
+          updated_at?: string
+          whatsapp_clicks?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_analytics_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: true
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stores: {
         Row: {
           business_hours_close: string | null
           business_hours_open: string | null
           created_at: string | null
+          custom_greeting: string | null
           description: string | null
           email: string | null
           id: string
           instagram: string | null
           is_suspended: boolean | null
           location: string | null
+          logo_url: string | null
           name: string
+          phone_number: string | null
           slug: string
           tiktok: string | null
           twitter: string | null
@@ -98,13 +133,16 @@ export type Database = {
           business_hours_close?: string | null
           business_hours_open?: string | null
           created_at?: string | null
+          custom_greeting?: string | null
           description?: string | null
           email?: string | null
           id?: string
           instagram?: string | null
           is_suspended?: boolean | null
           location?: string | null
+          logo_url?: string | null
           name: string
+          phone_number?: string | null
           slug: string
           tiktok?: string | null
           twitter?: string | null
@@ -115,13 +153,16 @@ export type Database = {
           business_hours_close?: string | null
           business_hours_open?: string | null
           created_at?: string | null
+          custom_greeting?: string | null
           description?: string | null
           email?: string | null
           id?: string
           instagram?: string | null
           is_suspended?: boolean | null
           location?: string | null
+          logo_url?: string | null
           name?: string
+          phone_number?: string | null
           slug?: string
           tiktok?: string | null
           twitter?: string | null
