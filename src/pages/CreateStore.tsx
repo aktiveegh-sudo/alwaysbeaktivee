@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Navbar from "@/components/Navbar";
 import { generateSlug } from "@/lib/store-utils";
 import { toast } from "sonner";
+import confetti from "canvas-confetti";
 
 const CreateStore = () => {
   const { user, session, loading: authLoading } = useAuth();
@@ -16,9 +17,12 @@ const CreateStore = () => {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [phone, setPhone] = useState("");
   const [openTime, setOpenTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("17:00");
   const [description, setDescription] = useState("");
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [storeName, setStoreName] = useState("");
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +43,7 @@ const CreateStore = () => {
           slug,
           description,
           whatsapp_number: whatsapp,
+          phone_number: phone || null,
           business_hours_open: openTime,
           business_hours_close: closeTime,
         },
@@ -56,10 +61,47 @@ const CreateStore = () => {
         toast.error(result.error);
       }
     } else {
-      toast.success("Store created!");
-      navigate("/dashboard");
+      // Create analytics row
+      if (result?.store?.id) {
+        await supabase.from("store_analytics" as any).insert({ store_id: result.store.id });
+      }
+
+      // Confetti!
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ["#a3e635", "#1a1a1a", "#ffffff", "#65a30d"],
+      });
+
+      setStoreName(name);
+      setShowWelcome(true);
     }
   };
+
+  if (showWelcome) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="flex items-center justify-center px-4 py-24">
+          <div className="text-center max-w-md animate-fade-in-up">
+            <div className="text-6xl mb-6">🎉</div>
+            <h1 className="text-3xl font-bold text-foreground">Welcome aboard!</h1>
+            <p className="mt-3 text-lg text-muted-foreground">
+              <span className="text-foreground font-medium">{storeName}</span> is live! Let's set up your products and start getting orders.
+            </p>
+            <Button
+              size="lg"
+              className="mt-8 bg-lime text-lime-foreground hover:bg-lime/90"
+              onClick={() => navigate("/dashboard")}
+            >
+              Go to your dashboard →
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (authLoading) {
     return (
@@ -89,6 +131,10 @@ const CreateStore = () => {
             <div>
               <Label htmlFor="whatsapp">WhatsApp number (with country code)</Label>
               <Input id="whatsapp" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="+233XXXXXXXXX" required maxLength={20} />
+            </div>
+            <div>
+              <Label htmlFor="phone">Call number (with country code)</Label>
+              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+233XXXXXXXXX" required maxLength={20} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
