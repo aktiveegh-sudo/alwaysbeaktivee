@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,14 +7,41 @@ import { Label } from "@/components/ui/label";
 import Navbar from "@/components/Navbar";
 import { toast } from "sonner";
 
+const ALLOWED_DOMAINS = ["gmail.com", "yahoo.com", "outlook.com", "icloud.com", "hotmail.com"];
+
+const getPasswordStrength = (password: string) => {
+  let score = 0;
+  if (password.length >= 6) score++;
+  if (password.length >= 10) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+
+  if (score <= 1) return { label: "Weak", color: "bg-destructive", width: "w-1/5" };
+  if (score === 2) return { label: "Fair", color: "bg-orange-400", width: "w-2/5" };
+  if (score === 3) return { label: "Good", color: "bg-yellow-400", width: "w-3/5" };
+  if (score === 4) return { label: "Strong", color: "bg-lime", width: "w-4/5" };
+  return { label: "Very Strong", color: "bg-success", width: "w-full" };
+};
+
 const Signup = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const emailDomain = email.includes("@") ? email.split("@")[1]?.toLowerCase() : "";
+  const isEmailDomainValid = !emailDomain || ALLOWED_DOMAINS.includes(emailDomain);
+  const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!isEmailDomainValid) {
+      toast.error("Please use a valid email provider (Gmail, Yahoo, Outlook, or iCloud).");
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email,
@@ -73,13 +100,41 @@ const Signup = () => {
           <form onSubmit={handleSignup} className="space-y-4">
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              {emailDomain && !isEmailDomainValid && (
+                <p className="mt-1 text-xs text-destructive">
+                  Only Gmail, Yahoo, Outlook, and iCloud emails are allowed.
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+              {password && (
+                <div className="mt-2">
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-300 ${passwordStrength.color} ${passwordStrength.width}`} />
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Strength: <span className="font-medium text-foreground">{passwordStrength.label}</span>
+                  </p>
+                </div>
+              )}
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || (!isEmailDomainValid && !!emailDomain)}>
               {loading ? "Creating account..." : "Sign up"}
             </Button>
           </form>
