@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useCurrency } from "@/hooks/useCurrency";
+import sampleSourdough from "@/assets/sample-sourdough.jpg";
+import sampleCroissant from "@/assets/sample-croissant.jpg";
 
 const FloatingShapes = () => (
   <div className="pointer-events-none absolute inset-0 overflow-hidden">
