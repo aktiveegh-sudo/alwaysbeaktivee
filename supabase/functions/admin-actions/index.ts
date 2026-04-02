@@ -50,19 +50,16 @@ serve(async (req) => {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
       const { data: store, error } = await supabaseAdmin.from("stores")
         .update({ is_suspended: Boolean(data.is_suspended) })
         .eq("id", data.id)
         .select()
         .single();
-
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
       return new Response(JSON.stringify({ store }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -74,17 +71,49 @@ serve(async (req) => {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
-      // Delete products first
       await supabaseAdmin.from("products").delete().eq("store_id", data.id);
+      await supabaseAdmin.from("store_analytics").delete().eq("store_id", data.id);
       const { error } = await supabaseAdmin.from("stores").delete().eq("id", data.id);
-
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
+    if (action === "delete-user") {
+      if (!data.user_id) {
+        return new Response(JSON.stringify({ error: "Missing user ID" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // Prevent self-deletion
+      if (data.user_id === user.id) {
+        return new Response(JSON.stringify({ error: "Cannot delete your own account" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // Delete user's stores, products, analytics
+      const { data: userStores } = await supabaseAdmin.from("stores").select("id").eq("user_id", data.user_id);
+      if (userStores && userStores.length > 0) {
+        const storeIds = userStores.map((s: any) => s.id);
+        await supabaseAdmin.from("products").delete().in("store_id", storeIds);
+        await supabaseAdmin.from("store_analytics").delete().in("store_id", storeIds);
+        await supabaseAdmin.from("stores").delete().eq("user_id", data.user_id);
+      }
+      // Delete roles & profile
+      await supabaseAdmin.from("user_roles").delete().eq("user_id", data.user_id);
+      await supabaseAdmin.from("profiles").delete().eq("id", data.user_id);
+      // Delete auth user
+      const { error } = await supabaseAdmin.auth.admin.deleteUser(data.user_id);
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -112,13 +141,11 @@ serve(async (req) => {
       const { data: stores, error } = await supabaseAdmin.from("stores")
         .select("*")
         .order("created_at", { ascending: false });
-
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
       return new Response(JSON.stringify({ stores }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -128,13 +155,11 @@ serve(async (req) => {
       const { data: profiles, error } = await supabaseAdmin.from("profiles")
         .select("*")
         .order("created_at", { ascending: false });
-
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
       return new Response(JSON.stringify({ profiles }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -146,19 +171,37 @@ serve(async (req) => {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
       const { data: products, error } = await supabaseAdmin.from("products")
         .select("*")
         .eq("store_id", data.store_id)
         .order("created_at", { ascending: false });
-
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
       return new Response(JSON.stringify({ products }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "get-analytics") {
+      const { data: analytics, error } = await supabaseAdmin.from("store_analytics")
+        .select("*, stores(name, slug)")
+        .order("store_views", { ascending: false });
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // Totals
+      let totalViews = 0;
+      let totalClicks = 0;
+      (analytics || []).forEach((a: any) => {
+        totalViews += a.store_views || 0;
+        totalClicks += a.whatsapp_clicks || 0;
+      });
+      return new Response(JSON.stringify({ analytics, totalViews, totalClicks }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
