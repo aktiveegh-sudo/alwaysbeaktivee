@@ -168,8 +168,8 @@ const Index = () => {
             <p className="mt-1 text-xs text-muted-foreground">Open: 08:00 — 18:00</p>
             <div className="mt-6 grid grid-cols-2 gap-3">
               {[
-                { name: "Sourdough Bread", price: 95, img: "https://images.unsplash.com/photo-1585478259715-876acc5be8fc?w=400&h=400&fit=crop" },
-                { name: "Butter Croissant", price: 45, img: "https://images.unsplash.com/photo-1555507036-ab1f4038024a?w=400&h=400&fit=crop" },
+                { name: "Sourdough Bread", price: 95, img: sampleSourdough },
+                { name: "Butter Croissant", price: 45, img: sampleCroissant },
               ].map((p) => (
                 <div key={p.name} className="group rounded-lg border border-border p-3 transition-all duration-200 hover:border-lime/40">
                   <div className="aspect-square rounded-md bg-muted overflow-hidden">
