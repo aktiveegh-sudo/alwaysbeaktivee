@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import EmailVerificationGate from "@/components/EmailVerificationGate";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -14,7 +15,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  return <>{children}</>;
+  return (
+    <EmailVerificationGate>
+      {children}
+    </EmailVerificationGate>
+  );
 };
 
 export default ProtectedRoute;
