@@ -46,14 +46,14 @@ const Signup = () => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: `${window.location.origin}/dashboard` },
     });
     setLoading(false);
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Account created! Check your email to confirm.");
-      navigate("/dashboard");
+      toast.success("Account created! Check your email to confirm, then log in.");
+      navigate("/login");
     }
   };
 
