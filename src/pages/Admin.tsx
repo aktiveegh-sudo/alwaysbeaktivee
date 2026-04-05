@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
   Store,
