@@ -76,6 +76,39 @@ export type Database = {
         }
         Relationships: []
       }
+      site_settings: {
+        Row: {
+          created_at: string
+          id: string
+          instagram_url: string | null
+          singleton: boolean
+          support_email: string
+          tiktok_url: string | null
+          twitter_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instagram_url?: string | null
+          singleton?: boolean
+          support_email?: string
+          tiktok_url?: string | null
+          twitter_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instagram_url?: string | null
+          singleton?: boolean
+          support_email?: string
+          tiktok_url?: string | null
+          twitter_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       store_analytics: {
         Row: {
           id: string
