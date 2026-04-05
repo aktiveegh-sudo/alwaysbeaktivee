@@ -11,6 +11,8 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetSending, setResetSending] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -22,6 +24,22 @@ const Login = () => {
       toast.error(error.message);
     } else {
       navigate("/dashboard");
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) { toast.error("Enter your email first"); return; }
+    setResetSending(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setResetSending(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Password reset link sent! Check your email.");
+      setForgotMode(false);
     }
   };
 
@@ -71,13 +89,47 @@ const Login = () => {
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div>
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <button
+                  type="button"
+                  onClick={() => setForgotMode(true)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Logging in..." : "Log in"}
             </Button>
           </form>
+
+          {forgotMode && (
+            <div className="mt-4 rounded-lg border border-border p-4">
+              <p className="text-sm font-medium text-foreground mb-2">Reset your password</p>
+              <p className="text-xs text-muted-foreground mb-3">Enter your email and we'll send you a reset link.</p>
+              <form onSubmit={handleForgotPassword} className="space-y-3">
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  required
+                />
+                <div className="flex gap-2">
+                  <Button type="submit" size="sm" disabled={resetSending}>
+                    {resetSending ? "Sending..." : "Send reset link"}
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setForgotMode(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
+
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
             <Link to="/signup" className="font-medium text-foreground hover:underline">Sign up</Link>

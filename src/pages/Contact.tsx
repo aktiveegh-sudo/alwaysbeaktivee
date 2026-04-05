@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Contact = () => {
   const [name, setName] = useState("");
@@ -16,16 +17,19 @@ const Contact = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSending(true);
-    // Open WhatsApp with the message
-    const text = encodeURIComponent(
-      `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`
-    );
-    window.open(`https://wa.me/?text=${text}`, "_blank");
-    toast.success("Opening WhatsApp...");
+    try {
+      const { error } = await supabase.functions.invoke("contact-message", {
+        body: { name, email, message },
+      });
+      if (error) throw error;
+      toast.success("Message sent! We'll get back to you soon.");
+      setName("");
+      setEmail("");
+      setMessage("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send. Please try again.");
+    }
     setSending(false);
-    setName("");
-    setEmail("");
-    setMessage("");
   };
 
   return (
@@ -61,8 +65,8 @@ const Contact = () => {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[10px] border border-border p-4">
                 <p className="text-xs text-muted-foreground">Email</p>
-                <a href="mailto:hello@aktivee.shop" className="text-sm font-medium text-foreground hover:text-lime transition-colors">
-                  hello@aktivee.shop
+                <a href="mailto:support@aktivee.shop" className="text-sm font-medium text-foreground hover:text-lime transition-colors">
+                  support@aktivee.shop
                 </a>
               </div>
               <div className="rounded-[10px] border border-border p-4">
