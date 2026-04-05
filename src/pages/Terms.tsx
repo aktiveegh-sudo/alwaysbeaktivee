@@ -47,7 +47,7 @@ const Terms = () => (
 
           <section>
             <h2 className="text-base font-semibold text-foreground">8. Contact</h2>
-            <p className="mt-2">For questions about these terms, contact us at hello@aktivee.shop.</p>
+            <p className="mt-2">For questions about these terms, contact us at support@aktivee.shop.</p>
           </section>
         </div>
       </div>

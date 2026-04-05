@@ -38,7 +38,7 @@ const Privacy = () => (
 
           <section>
             <h2 className="text-base font-semibold text-foreground">6. Contact</h2>
-            <p className="mt-2">If you have any questions about this privacy policy, please contact us at hello@aktivee.shop.</p>
+            <p className="mt-2">If you have any questions about this privacy policy, please contact us at support@aktivee.shop.</p>
           </section>
         </div>
       </div>
