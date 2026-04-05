@@ -188,6 +188,33 @@ const Index = () => {
       </section>
 
       {/* Final CTA */}
+      {/* Payment integrations coming soon */}
+      <section className="border-t border-border py-20">
+        <div className="container mx-auto px-4 text-center">
+          <span className="inline-block rounded-full bg-lime-light px-4 py-1.5 text-xs font-medium text-lime-foreground mb-4">
+            🔜 Coming Soon
+          </span>
+          <h2 className="text-2xl font-bold text-foreground">Payment Integrations</h2>
+          <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
+            Accept payments directly through your store. Mobile money, card payments, and more — all integrated so you can sell without leaving Aktivee.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            {["Mobile Money", "Card Payments", "Bank Transfer"].map((method) => (
+              <div key={method} className="rounded-[10px] border border-dashed border-border px-6 py-3 text-sm text-muted-foreground">
+                {method}
+              </div>
+            ))}
+          </div>
+          <p className="mt-6 text-xs text-muted-foreground">
+            Want early access?{" "}
+            <Link to="/contact" className="text-lime hover:underline font-medium">
+              Let us know
+            </Link>
+          </p>
+        </div>
+      </section>
+
+      {/* Final CTA */}
       <section className="relative border-t border-border py-20 text-center overflow-hidden">
         <div className="pointer-events-none absolute inset-0">
           <div className="animate-float-1 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-lime/5 blur-3xl" />

@@ -36,7 +36,9 @@ import {
   Calendar,
 } from "lucide-react";
 
-type AdminTab = "overview" | "stores" | "users" | "analytics";
+import { Settings } from "lucide-react";
+
+type AdminTab = "overview" | "stores" | "users" | "analytics" | "settings";
 
 const Admin = () => {
   const { user } = useAuth();
@@ -55,6 +57,13 @@ const Admin = () => {
   const [storeProducts, setStoreProducts] = useState<Record<string, any[]>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: "store" | "user"; id: string; name: string } | null>(null);
+
+  // Site settings
+  const [siteEmail, setSiteEmail] = useState("support@aktivee.shop");
+  const [siteInstagram, setSiteInstagram] = useState("");
+  const [siteTwitter, setSiteTwitter] = useState("");
+  const [siteTiktok, setSiteTiktok] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const invokeAdmin = async (action: string, data: any = {}) => {
     const { data: result, error } = await supabase.functions.invoke("admin-actions", {
@@ -83,6 +92,15 @@ const Admin = () => {
         setAnalytics(analyticsResult.analytics || []);
         setTotalViews(analyticsResult.totalViews || 0);
         setTotalClicks(analyticsResult.totalClicks || 0);
+
+        // Load site settings
+        const { data: settingsData } = await supabase.from("site_settings" as any).select("*").maybeSingle();
+        if (settingsData) {
+          setSiteEmail((settingsData as any).support_email || "support@aktivee.shop");
+          setSiteInstagram((settingsData as any).instagram_url || "");
+          setSiteTwitter((settingsData as any).twitter_url || "");
+          setSiteTiktok((settingsData as any).tiktok_url || "");
+        }
       } catch {
         setIsAdmin(false);
       }
@@ -196,6 +214,7 @@ const Admin = () => {
     { key: "stores", label: "Stores", icon: Store },
     { key: "users", label: "Users", icon: Users },
     { key: "analytics", label: "Analytics", icon: Eye },
+    { key: "settings", label: "Site Settings", icon: Settings },
   ];
 
   return (
@@ -633,8 +652,82 @@ const Admin = () => {
           )}
         </div>
       </div>
-      <Footer />
 
+      {/* Site Settings Tab */}
+      {tab === "settings" && (
+        <div className="mt-8 max-w-md space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Main Website Settings</h2>
+            <p className="text-sm text-muted-foreground mt-1">Manage your social links and contact email shown in the footer.</p>
+          </div>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSavingSettings(true);
+              // Upsert site settings
+              const payload = {
+                singleton: true,
+                support_email: siteEmail,
+                instagram_url: siteInstagram || null,
+                twitter_url: siteTwitter || null,
+                tiktok_url: siteTiktok || null,
+              };
+              const { data: existing } = await supabase.from("site_settings" as any).select("id").maybeSingle();
+              if (existing) {
+                await supabase.from("site_settings" as any).update(payload).eq("id", (existing as any).id);
+              } else {
+                await supabase.from("site_settings" as any).insert(payload);
+              }
+              setSavingSettings(false);
+              toast.success("Site settings saved!");
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <Label htmlFor="site-email">Support Email</Label>
+              <Input
+                id="site-email"
+                type="email"
+                value={siteEmail}
+                onChange={(e) => setSiteEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="site-instagram">Instagram URL</Label>
+              <Input
+                id="site-instagram"
+                value={siteInstagram}
+                onChange={(e) => setSiteInstagram(e.target.value)}
+                placeholder="https://instagram.com/aktivee"
+              />
+            </div>
+            <div>
+              <Label htmlFor="site-twitter">Twitter / X URL</Label>
+              <Input
+                id="site-twitter"
+                value={siteTwitter}
+                onChange={(e) => setSiteTwitter(e.target.value)}
+                placeholder="https://x.com/aktivee"
+              />
+            </div>
+            <div>
+              <Label htmlFor="site-tiktok">TikTok URL</Label>
+              <Input
+                id="site-tiktok"
+                value={siteTiktok}
+                onChange={(e) => setSiteTiktok(e.target.value)}
+                placeholder="https://tiktok.com/@aktivee"
+              />
+            </div>
+            <Button type="submit" disabled={savingSettings}>
+              {savingSettings ? "Saving..." : "Save Settings"}
+            </Button>
+          </form>
+        </div>
+      )}
+
+      <Footer />
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
         <AlertDialogContent>
