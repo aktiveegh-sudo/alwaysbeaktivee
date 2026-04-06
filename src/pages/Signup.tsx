@@ -46,7 +46,7 @@ const Signup = () => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+      options: { emailRedirectTo: "https://aktivee.shop/dashboard" },
     });
     setLoading(false);
     if (error) {
@@ -61,7 +61,7 @@ const Signup = () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: "https://aktivee.shop/dashboard",
       },
     });
     if (error) toast.error(error.message);
