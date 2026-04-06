@@ -20,7 +20,7 @@ const EmailVerificationGate = ({ children }: { children: React.ReactNode }) => {
     const { error } = await supabase.auth.resend({
       type: "signup",
       email: user.email!,
-      options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+      options: { emailRedirectTo: "https://aktivee.shop/dashboard" },
     });
     setResending(false);
     if (error) {
