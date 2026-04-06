@@ -32,7 +32,7 @@ const Login = () => {
     if (!email) { toast.error("Enter your email first"); return; }
     setResetSending(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: "https://aktivee.shop/reset-password",
     });
     setResetSending(false);
     if (error) {
