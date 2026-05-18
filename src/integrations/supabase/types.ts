@@ -465,6 +465,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      track_order: {
+        Args: { _phone: string; _reference: string }
+        Returns: {
+          amount: number
+          created_at: string
+          product_name: string
+          recipient_phone: string
+          reference: string
+          status: Database["public"]["Enums"]["order_status"]
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "agent" | "subagent" | "customer"
