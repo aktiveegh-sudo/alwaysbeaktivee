@@ -14,16 +14,471 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      api_keys: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      free_data_campaigns: {
+        Row: {
+          created_at: string
+          data_volume_mb: number
+          id: string
+          is_active: boolean
+          name: string
+          network: Database["public"]["Enums"]["network_type"]
+        }
+        Insert: {
+          created_at?: string
+          data_volume_mb: number
+          id?: string
+          is_active?: boolean
+          name: string
+          network: Database["public"]["Enums"]["network_type"]
+        }
+        Update: {
+          created_at?: string
+          data_volume_mb?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          network?: Database["public"]["Enums"]["network_type"]
+        }
+        Relationships: []
+      }
+      free_data_codes: {
+        Row: {
+          campaign_id: string
+          code: string
+          created_at: string
+          id: string
+          redeemed_at: string | null
+          redeemed_by_phone: string | null
+        }
+        Insert: {
+          campaign_id: string
+          code: string
+          created_at?: string
+          id?: string
+          redeemed_at?: string | null
+          redeemed_by_phone?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          code?: string
+          created_at?: string
+          id?: string
+          redeemed_at?: string | null
+          redeemed_by_phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_data_codes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "free_data_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          agent_profit: number | null
+          amount: number
+          buyer_user_id: string | null
+          created_at: string
+          delivered_pin: string | null
+          id: string
+          notes: string | null
+          product_id: string | null
+          recipient_email: string | null
+          recipient_phone: string
+          reference: string
+          status: Database["public"]["Enums"]["order_status"]
+          store_owner_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_profit?: number | null
+          amount: number
+          buyer_user_id?: string | null
+          created_at?: string
+          delivered_pin?: string | null
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          recipient_email?: string | null
+          recipient_phone: string
+          reference?: string
+          status?: Database["public"]["Enums"]["order_status"]
+          store_owner_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_profit?: number | null
+          amount?: number
+          buyer_user_id?: string | null
+          created_at?: string
+          delivered_pin?: string | null
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          recipient_email?: string | null
+          recipient_phone?: string
+          reference?: string
+          status?: Database["public"]["Enums"]["order_status"]
+          store_owner_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          agent_price: number
+          created_at: string
+          data_volume_mb: number | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          network: Database["public"]["Enums"]["network_type"]
+          public_price: number
+          stock_count: number | null
+          type: Database["public"]["Enums"]["product_type"]
+          updated_at: string
+        }
+        Insert: {
+          agent_price: number
+          created_at?: string
+          data_volume_mb?: number | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          network: Database["public"]["Enums"]["network_type"]
+          public_price: number
+          stock_count?: number | null
+          type: Database["public"]["Enums"]["product_type"]
+          updated_at?: string
+        }
+        Update: {
+          agent_price?: number
+          created_at?: string
+          data_volume_mb?: number | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          network?: Database["public"]["Enums"]["network_type"]
+          public_price?: number
+          stock_count?: number | null
+          type?: Database["public"]["Enums"]["product_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          is_suspended: boolean
+          parent_agent_id: string | null
+          phone: string | null
+          referred_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          is_suspended?: boolean
+          parent_agent_id?: string | null
+          phone?: string | null
+          referred_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          is_suspended?: boolean
+          parent_agent_id?: string | null
+          phone?: string | null
+          referred_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_parent_agent_id_fkey"
+            columns: ["parent_agent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_settings: {
+        Row: {
+          agent_signup_fee: number
+          id: string
+          logo_url: string | null
+          maintenance_message: string | null
+          maintenance_mode: boolean
+          min_withdrawal: number
+          singleton: boolean
+          site_name: string
+          updated_at: string
+          whatsapp_number: string | null
+        }
+        Insert: {
+          agent_signup_fee?: number
+          id?: string
+          logo_url?: string | null
+          maintenance_message?: string | null
+          maintenance_mode?: boolean
+          min_withdrawal?: number
+          singleton?: boolean
+          site_name?: string
+          updated_at?: string
+          whatsapp_number?: string | null
+        }
+        Update: {
+          agent_signup_fee?: number
+          id?: string
+          logo_url?: string | null
+          maintenance_message?: string | null
+          maintenance_mode?: boolean
+          min_withdrawal?: number
+          singleton?: boolean
+          site_name?: string
+          updated_at?: string
+          whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
+      stores: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          slug: string
+          tagline: string | null
+          theme_color: string | null
+          updated_at: string
+          user_id: string
+          whatsapp_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          slug: string
+          tagline?: string | null
+          theme_color?: string | null
+          updated_at?: string
+          user_id: string
+          whatsapp_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          slug?: string
+          tagline?: string | null
+          theme_color?: string | null
+          updated_at?: string
+          user_id?: string
+          whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          reference: string | null
+          type: Database["public"]["Enums"]["tx_type"]
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          reference?: string | null
+          type: Database["public"]["Enums"]["tx_type"]
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          reference?: string | null
+          type?: Database["public"]["Enums"]["tx_type"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          balance: number
+          total_earned: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          total_earned?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          total_earned?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      withdrawal_requests: {
+        Row: {
+          account_name: string
+          admin_notes: string | null
+          amount: number
+          created_at: string
+          id: string
+          momo_number: string
+          network: string
+          status: Database["public"]["Enums"]["withdrawal_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_name: string
+          admin_notes?: string | null
+          amount: number
+          created_at?: string
+          id?: string
+          momo_number: string
+          network: string
+          status?: Database["public"]["Enums"]["withdrawal_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_name?: string
+          admin_notes?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          momo_number?: string
+          network?: string
+          status?: Database["public"]["Enums"]["withdrawal_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "agent" | "subagent" | "customer"
+      network_type: "mtn" | "telecel" | "airteltigo" | "bece" | "wassce"
+      order_status: "processing" | "delivered" | "failed" | "refunded"
+      product_type: "data" | "checker"
+      tx_type:
+        | "topup"
+        | "purchase"
+        | "withdrawal"
+        | "refund"
+        | "referral_bonus"
+        | "admin_credit"
+      withdrawal_status: "pending" | "approved" | "rejected" | "paid"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +605,20 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "agent", "subagent", "customer"],
+      network_type: ["mtn", "telecel", "airteltigo", "bece", "wassce"],
+      order_status: ["processing", "delivered", "failed", "refunded"],
+      product_type: ["data", "checker"],
+      tx_type: [
+        "topup",
+        "purchase",
+        "withdrawal",
+        "refund",
+        "referral_bonus",
+        "admin_credit",
+      ],
+      withdrawal_status: ["pending", "approved", "rejected", "paid"],
+    },
   },
 } as const
