@@ -1,191 +1,137 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* BossuData — Dark default. Black base, red CTA, gold reward */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 6.7%;
+    /* LIGHT MODE */
+    --background: 0 0% 98%;
+    --foreground: 0 0% 8%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 6.7%;
+    --card-foreground: 0 0% 8%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 6.7%;
+    --popover-foreground: 0 0% 8%;
 
-    --primary: 0 0% 10.2%;
+    /* Red primary CTA */
+    --primary: 0 78% 50%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 10.2%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 0 0% 10%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 40%;
 
-    --accent: 75 80% 50%;
-    --accent-foreground: 0 0% 6.7%;
+    /* Gold accent */
+    --accent: 45 95% 52%;
+    --accent-foreground: 0 0% 8%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 84% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 91.8%;
-    --input: 0 0% 91.8%;
-    --ring: 75 80% 50%;
-
-    --radius: 0.5rem;
-
-    --success: 142 70% 45%;
+    --success: 142 70% 42%;
     --success-foreground: 0 0% 100%;
 
-    --lime: 75 80% 50%;
-    --lime-light: 75 80% 92%;
-    --lime-foreground: 0 0% 6.7%;
+    --gold: 45 95% 52%;
+    --gold-foreground: 0 0% 8%;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 0 0% 26%;
-    --sidebar-primary: 0 0% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 0 0% 96%;
-    --sidebar-accent-foreground: 0 0% 10%;
-    --sidebar-border: 0 0% 91%;
-    --sidebar-ring: 0 0% 10%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 78% 50%;
+
+    --radius: 0.85rem;
+
+    --gradient-hero: linear-gradient(135deg, hsl(0 0% 4%) 0%, hsl(0 75% 20%) 50%, hsl(45 95% 25%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(45 95% 52%), hsl(38 100% 48%));
+    --gradient-red: linear-gradient(135deg, hsl(0 78% 50%), hsl(0 80% 38%));
+    --shadow-elegant: 0 20px 50px -20px hsl(0 0% 0% / 0.25);
+    --shadow-glow: 0 0 60px hsl(0 78% 50% / 0.35);
   }
 
   .dark {
-    --background: 0 0% 6.7%;
+    --background: 0 0% 5%;
     --foreground: 0 0% 96%;
-    --card: 0 0% 10.2%;
+
+    --card: 0 0% 9%;
     --card-foreground: 0 0% 96%;
-    --popover: 0 0% 10.2%;
+
+    --popover: 0 0% 9%;
     --popover-foreground: 0 0% 96%;
-    --primary: 0 0% 96%;
-    --primary-foreground: 0 0% 10.2%;
-    --secondary: 0 0% 15%;
+
+    --primary: 0 82% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 14%;
     --secondary-foreground: 0 0% 96%;
-    --muted: 0 0% 15%;
+
+    --muted: 0 0% 13%;
     --muted-foreground: 0 0% 65%;
-    --accent: 75 80% 50%;
-    --accent-foreground: 0 0% 6.7%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 96%;
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 75 80% 50%;
-    --lime: 75 70% 45%;
-    --lime-light: 75 30% 15%;
-    --lime-foreground: 0 0% 96%;
-    --sidebar-background: 0 0% 10%;
-    --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 0 0% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 16%;
-    --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 0 0% 16%;
-    --sidebar-ring: 0 0% 59.8%;
+
+    --accent: 45 95% 55%;
+    --accent-foreground: 0 0% 6%;
+
+    --destructive: 0 78% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 65% 48%;
+    --success-foreground: 0 0% 100%;
+
+    --gold: 45 95% 55%;
+    --gold-foreground: 0 0% 6%;
+
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 0 82% 55%;
+
+    --gradient-hero: linear-gradient(135deg, hsl(0 0% 3%) 0%, hsl(0 75% 12%) 55%, hsl(45 80% 20%) 100%);
+    --shadow-glow: 0 0 80px hsl(0 82% 55% / 0.4);
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
+  * { @apply border-border; }
+  html { scroll-behavior: smooth; }
   body {
     @apply bg-background text-foreground;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: -0.02em;
   }
 }
 
-@keyframes gentle-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-.animate-gentle-bounce {
-  animation: gentle-bounce 2s ease-in-out infinite;
+@layer utilities {
+  .bg-gradient-hero { background-image: var(--gradient-hero); }
+  .bg-gradient-gold { background-image: var(--gradient-gold); }
+  .bg-gradient-red { background-image: var(--gradient-red); }
+  .shadow-elegant { box-shadow: var(--shadow-elegant); }
+  .shadow-glow { box-shadow: var(--shadow-glow); }
+  .text-gold { color: hsl(var(--gold)); }
+  .bg-gold { background-color: hsl(var(--gold)); }
+  .border-gold { border-color: hsl(var(--gold)); }
+
+  .glass {
+    backdrop-filter: blur(14px);
+    background: hsl(var(--background) / 0.65);
+    border: 1px solid hsl(var(--border) / 0.5);
+  }
 }
 
-@keyframes fade-in-up {
-  0% { opacity: 0; transform: translateY(20px); }
-  100% { opacity: 1; transform: translateY(0); }
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-.animate-fade-in-up {
-  animation: fade-in-up 0.7s ease-out both;
-}
-.animate-fade-in-up-delay-1 {
-  animation: fade-in-up 0.7s ease-out 0.15s both;
-}
-.animate-fade-in-up-delay-2 {
-  animation: fade-in-up 0.7s ease-out 0.3s both;
-}
-.animate-fade-in-up-delay-3 {
-  animation: fade-in-up 0.7s ease-out 0.45s both;
-}
+.animate-fade-up { animation: fade-up 0.6s ease-out both; }
 
-@keyframes float-shape {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  25% { transform: translate(30px, -20px) rotate(5deg); }
-  50% { transform: translate(-10px, 20px) rotate(-3deg); }
-  75% { transform: translate(-30px, -10px) rotate(3deg); }
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.5); }
+  50% { box-shadow: 0 0 30px 8px hsl(var(--primary) / 0.25); }
 }
-.animate-float-1 {
-  animation: float-shape 20s ease-in-out infinite;
-}
-.animate-float-2 {
-  animation: float-shape 25s ease-in-out infinite reverse;
-}
-.animate-float-3 {
-  animation: float-shape 18s ease-in-out 3s infinite;
-}
-.animate-float-4 {
-  animation: float-shape 22s ease-in-out 5s infinite reverse;
-}
-.animate-float-5 {
-  animation: float-shape 28s ease-in-out 2s infinite;
-}
-
-@keyframes scale-in {
-  0% { opacity: 0; transform: scale(0.9); }
-  100% { opacity: 1; transform: scale(1); }
-}
-.animate-scale-in {
-  animation: scale-in 0.5s ease-out 0.2s both;
-}
-
-@keyframes text-reveal {
-  0% { clip-path: inset(0 100% 0 0); opacity: 0; }
-  100% { clip-path: inset(0 0% 0 0); opacity: 1; }
-}
-.animate-text-reveal {
-  animation: text-reveal 0.8s ease-out both;
-}
-.animate-text-reveal-delay-1 {
-  animation: text-reveal 0.8s ease-out 0.2s both;
-}
-.animate-text-reveal-delay-2 {
-  animation: text-reveal 0.8s ease-out 0.4s both;
-}
-
-@keyframes word-pop {
-  0% { opacity: 0; transform: scale(0.8) translateY(8px); filter: blur(4px); }
-  60% { transform: scale(1.05) translateY(-2px); filter: blur(0); }
-  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
-}
-.animate-word-pop {
-  animation: word-pop 0.6s ease-out 0.5s both;
-}
-
-@keyframes slide-up-fade {
-  0% { opacity: 0; transform: translateY(30px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-.animate-slide-up-fade {
-  animation: slide-up-fade 0.6s ease-out 0.6s both;
-}
-.animate-slide-up-fade-delay-1 {
-  animation: slide-up-fade 0.6s ease-out 0.75s both;
-}
-.animate-slide-up-fade-delay-2 {
-  animation: slide-up-fade 0.6s ease-out 0.9s both;
-}
+.animate-pulse-glow { animation: pulse-glow 2.5s ease-in-out infinite; }
