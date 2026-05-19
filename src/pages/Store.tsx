@@ -33,6 +33,7 @@ type Product = {
   id: string;
   name: string;
   network: string;
+  type: "data" | "checker";
   public_price: number;
   agent_price: number;
   data_volume_mb: number | null;
@@ -99,7 +100,7 @@ export default function StorePage() {
       setStore(s as Store);
       const { data: p } = await supabase
         .from("products")
-        .select("id, name, network, public_price, agent_price, data_volume_mb, description")
+        .select("id, name, network, type, public_price, agent_price, data_volume_mb, description")
         .eq("is_active", true)
         .order("network", { ascending: true });
 
@@ -161,7 +162,9 @@ export default function StorePage() {
 
   const supportUrl =
     store.whatsapp_group_link || `https://wa.me/${toWhatsAppDigits(store.whatsapp_number || "")}`;
-  const networkCounts = products.reduce<Record<NetworkKey, number>>(
+  const dataProducts = products.filter((prod) => prod.type === "data");
+  const checkerProducts = products.filter((prod) => prod.type === "checker");
+  const networkCounts = dataProducts.reduce<Record<NetworkKey, number>>(
     (acc, prod) => {
       const key = toNetworkKey(prod.network);
       acc[key] += 1;
@@ -170,7 +173,7 @@ export default function StorePage() {
     { mtn: 0, telecel: 0, airteltigo: 0, other: 0 }
   );
   const visibleNetworks = (Object.keys(networkCounts) as NetworkKey[]).filter((key) => networkCounts[key] > 0);
-  const filteredProducts = products.filter((prod) => toNetworkKey(prod.network) === activeNetwork);
+  const filteredProducts = dataProducts.filter((prod) => toNetworkKey(prod.network) === activeNetwork);
 
   return (
     <div style={themeStyle} className="relative overflow-hidden min-h-screen">
@@ -243,7 +246,7 @@ export default function StorePage() {
 
       <section className="container py-12 relative">
         <div className="flex items-center justify-between gap-4 mb-6">
-          <h2 className="font-display text-2xl md:text-3xl font-bold">Available Bundles</h2>
+          <h2 className="font-display text-2xl md:text-3xl font-bold">Available Products</h2>
           <span className="text-xs rounded-full bg-secondary px-3 py-1.5 font-semibold">{products.length} products</span>
         </div>
 
@@ -271,48 +274,105 @@ export default function StorePage() {
 
         {products.length === 0 ? (
           <Card>
-            <CardContent className="py-16 text-center text-muted-foreground">No bundles available right now.</CardContent>
-          </Card>
-        ) : filteredProducts.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center text-muted-foreground">
-              No {NETWORK_META[activeNetwork].label} bundles available right now.
-            </CardContent>
+            <CardContent className="py-16 text-center text-muted-foreground">No products available right now.</CardContent>
           </Card>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredProducts.map((p) => {
-              const key = toNetworkKey(p.network);
-              const meta = NETWORK_META[key];
-              return (
-              <Card
-                key={p.id}
-                onClick={() => setSelected(p)}
-                className={`cursor-pointer transition hover:-translate-y-1.5 hover:shadow-glow ${meta.card}`}
-              >
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className={`text-xs font-bold uppercase rounded-full px-2.5 py-1 ${meta.pill}`}>{meta.label}</span>
-                    {p.data_volume_mb && (
-                      <span className="text-xs text-muted-foreground">
-                        {p.data_volume_mb >= 1024 ? `${(p.data_volume_mb / 1024).toFixed(1)}GB` : `${p.data_volume_mb}MB`}
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="font-display text-lg font-bold">{p.name}</h3>
-                  {p.description && <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{p.description}</p>}
-                  <div className="mt-4 flex items-end justify-between">
-                    <div className="font-display text-2xl font-bold" style={{ color: store.theme_color || undefined }}>
-                      {formatGHS(Number(p.selling_price ?? p.agent_price ?? p.public_price))}
-                    </div>
-                    <Button size="sm" style={{ background: store.theme_color || undefined }}>
-                      Buy
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-              );
-            })}
+          <div className="space-y-10">
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="font-display text-xl md:text-2xl font-bold">Data Bundles</h3>
+                <span className="text-xs rounded-full bg-secondary px-3 py-1.5 font-semibold">{dataProducts.length}</span>
+              </div>
+
+              {dataProducts.length === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-muted-foreground">No data bundles available right now.</CardContent>
+                </Card>
+              ) : filteredProducts.length === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-muted-foreground">
+                    No {NETWORK_META[activeNetwork].label} bundles available right now.
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredProducts.map((p) => {
+                    const key = toNetworkKey(p.network);
+                    const meta = NETWORK_META[key];
+                    const subtleText = key === "mtn" ? "text-black/80" : "text-white/90";
+                    const buyButtonClass = key === "mtn" ? "bg-black text-white hover:bg-black/90" : "bg-white text-black hover:bg-white/90";
+                    return (
+                    <Card
+                      key={p.id}
+                      onClick={() => setSelected(p)}
+                      className={`cursor-pointer transition hover:-translate-y-1.5 hover:shadow-glow ${meta.card}`}
+                    >
+                      <CardContent className="p-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className={`text-xs font-bold uppercase rounded-full px-2.5 py-1 ${meta.pill}`}>{meta.label}</span>
+                          {p.data_volume_mb && (
+                            <span className={`text-xs ${subtleText}`}>
+                              {p.data_volume_mb >= 1024 ? `${(p.data_volume_mb / 1024).toFixed(1)}GB` : `${p.data_volume_mb}MB`}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="font-display text-lg font-bold">{p.name}</h3>
+                        {p.description && <p className={`mt-2 text-sm line-clamp-2 ${subtleText}`}>{p.description}</p>}
+                        <div className="mt-4 flex items-end justify-between">
+                          <div className="font-display text-2xl font-bold">
+                            {formatGHS(Number(p.selling_price ?? p.agent_price ?? p.public_price))}
+                          </div>
+                          <Button size="sm" className={buyButtonClass}>
+                            Buy
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="font-display text-xl md:text-2xl font-bold">Checkers</h3>
+                <span className="text-xs rounded-full bg-secondary px-3 py-1.5 font-semibold">{checkerProducts.length}</span>
+              </div>
+
+              {checkerProducts.length === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-muted-foreground">No checkers available right now.</CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {checkerProducts.map((p) => (
+                    <Card
+                      key={p.id}
+                      onClick={() => setSelected(p)}
+                      className="cursor-pointer transition hover:-translate-y-1.5 hover:shadow-glow border-border bg-card"
+                    >
+                      <CardContent className="p-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-bold uppercase rounded-full px-2.5 py-1 bg-primary/10 text-primary">Checker</span>
+                          <span className="text-xs rounded-full px-2.5 py-1 bg-secondary text-secondary-foreground">{p.network.toUpperCase()}</span>
+                        </div>
+                        <h3 className="font-display text-lg font-bold">{p.name}</h3>
+                        {p.description && <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{p.description}</p>}
+                        <div className="mt-4 flex items-end justify-between">
+                          <div className="font-display text-2xl font-bold" style={{ color: store.theme_color || undefined }}>
+                            {formatGHS(Number(p.selling_price ?? p.agent_price ?? p.public_price))}
+                          </div>
+                          <Button size="sm" style={{ background: store.theme_color || undefined }}>
+                            Buy
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>

@@ -13,6 +13,7 @@ import {
 
 type Tab = "overview" | "products" | "orders" | "withdrawals" | "users" | "settings";
 type Network = "mtn" | "telecel" | "airteltigo" | "bece" | "wassce";
+type ProductType = "data" | "checker";
 type OrderStatus = "processing" | "delivered" | "failed" | "refunded";
 type WithdrawalStatus = "pending" | "approved" | "rejected" | "paid";
 type Role = "admin" | "agent" | "subagent" | "customer";
@@ -310,8 +311,13 @@ function ProductsTab() {
     setLoading(true);
     const { data } = await supabase.from("products").select("*");
     const sorted = (data || []).sort((a, b) => {
+      const byType = a.type === b.type ? 0 : a.type === "data" ? -1 : 1;
+      if (byType !== 0) return byType;
       const byNetwork = (networkOrder[a.network as Network] ?? 99) - (networkOrder[b.network as Network] ?? 99);
       if (byNetwork !== 0) return byNetwork;
+      if (a.type === "checker" || b.type === "checker") {
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      }
       const aMb = Number(a.data_volume_mb || 0);
       const bMb = Number(b.data_volume_mb || 0);
       if (aMb !== bMb) return aMb - bMb;
@@ -356,8 +362,9 @@ function ProductsTab() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{p.name}</span>
+                    <span className="text-xs uppercase rounded-full px-2 py-0.5 bg-primary/10 text-primary">{p.type}</span>
                     <span className="text-xs uppercase rounded-full px-2 py-0.5 bg-secondary">{p.network}</span>
-                    {p.data_volume_mb ? (
+                    {p.type === "data" && p.data_volume_mb ? (
                       <span className="text-xs rounded-full px-2 py-0.5 bg-muted text-muted-foreground">
                         {(Number(p.data_volume_mb) / 1024).toFixed(Number(p.data_volume_mb) % 1024 === 0 ? 0 : 1)}GB
                       </span>
@@ -389,8 +396,10 @@ function ProductsTab() {
 
 function ProductForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({
+    type: "data" as ProductType,
     network: "mtn" as Network,
     volume_gb: "",
+    checker_name: "",
     public_price: "",
     agent_price: "",
   });
@@ -399,24 +408,56 @@ function ProductForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    const gb = Number(f.volume_gb);
-    if (!isFinite(gb) || gb <= 0) {
-      setErr("Enter a valid volume in GB.");
+    const publicPrice = Number(f.public_price);
+    const agentPrice = Number(f.agent_price);
+    if (!isFinite(publicPrice) || publicPrice <= 0 || !isFinite(agentPrice) || agentPrice <= 0) {
+      setErr("Enter valid public and agent prices.");
       return;
     }
+    if (agentPrice > publicPrice) {
+      setErr("Agent price cannot be greater than public price.");
+      return;
+    }
+
+    let payload: any = null;
+    if (f.type === "data") {
+      const gb = Number(f.volume_gb);
+      if (!isFinite(gb) || gb <= 0) {
+        setErr("Enter a valid volume in GB.");
+        return;
+      }
+      const volumeMb = Math.round(gb * 1024);
+      const productName = `${f.network.toUpperCase()} ${gb}GB`;
+      payload = {
+        name: productName,
+        network: f.network,
+        type: "data" as ProductType,
+        public_price: publicPrice,
+        agent_price: agentPrice,
+        data_volume_mb: volumeMb,
+        description: null,
+      };
+    } else {
+      const checkerName = f.checker_name.trim();
+      if (checkerName.length < 2) {
+        setErr("Enter a valid checker name.");
+        return;
+      }
+      const inferredNetwork: Network = checkerName.toLowerCase().includes("wassce") ? "wassce" : "bece";
+      payload = {
+        name: checkerName,
+        network: inferredNetwork,
+        type: "checker" as ProductType,
+        public_price: publicPrice,
+        agent_price: agentPrice,
+        data_volume_mb: null,
+        description: null,
+      };
+    }
+
     setSaving(true);
     setErr(null);
-    const volumeMb = Math.round(gb * 1024);
-    const productName = `${f.network.toUpperCase()} ${gb}GB`;
-    const { error } = await supabase.from("products").insert({
-      name: productName,
-      network: f.network,
-      type: "data",
-      public_price: Number(f.public_price),
-      agent_price: Number(f.agent_price),
-      data_volume_mb: volumeMb,
-      description: null,
-    });
+    const { error } = await supabase.from("products").insert(payload);
     setSaving(false);
     if (error) return setErr(error.message);
     onSaved();
@@ -429,16 +470,31 @@ function ProductForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
         <form onSubmit={save} className="grid gap-3 sm:grid-cols-2">
           <select
             className="h-11 rounded-xl border border-input bg-background px-3 text-sm"
-            value={f.network}
-            onChange={(e) => setF({ ...f, network: e.target.value as Network })}
+            value={f.type}
+            onChange={(e) => setF({ ...f, type: e.target.value as ProductType })}
           >
-            {(["mtn", "telecel", "airteltigo"] as Network[]).map((n) => (
-              <option key={n} value={n}>{n.toUpperCase()}</option>
-            ))}
+            <option value="data">Data Bundle</option>
+            <option value="checker">Checker</option>
           </select>
-          <Input type="number" step="0.1" placeholder="Volume (GB)" value={f.volume_gb} onChange={(e) => setF({ ...f, volume_gb: e.target.value })} required />
+          {f.type === "data" ? (
+            <>
+              <select
+                className="h-11 rounded-xl border border-input bg-background px-3 text-sm"
+                value={f.network}
+                onChange={(e) => setF({ ...f, network: e.target.value as Network })}
+              >
+                {(["mtn", "telecel", "airteltigo"] as Network[]).map((n) => (
+                  <option key={n} value={n}>{n.toUpperCase()}</option>
+                ))}
+              </select>
+              <Input type="number" step="0.1" placeholder="Volume (GB)" value={f.volume_gb} onChange={(e) => setF({ ...f, volume_gb: e.target.value })} required />
+            </>
+          ) : (
+            <Input placeholder="Checker name" value={f.checker_name} onChange={(e) => setF({ ...f, checker_name: e.target.value })} required />
+          )}
           <Input type="number" step="0.01" placeholder="Public price (GHS)" value={f.public_price} onChange={(e) => setF({ ...f, public_price: e.target.value })} required />
           <Input type="number" step="0.01" placeholder="Agent price (GHS)" value={f.agent_price} onChange={(e) => setF({ ...f, agent_price: e.target.value })} required />
+          {f.type === "checker" && <p className="sm:col-span-2 text-xs text-muted-foreground">Checker network is auto-set based on name (contains WASSCE = WASSCE, otherwise BECE).</p>}
           {err && <div className="sm:col-span-2 text-destructive text-sm">{err}</div>}
           <div className="sm:col-span-2 flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

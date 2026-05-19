@@ -12,6 +12,7 @@ import {
   Copy,
   ExternalLink,
   Loader2,
+  Package,
   PackageSearch,
   Settings,
   Store as StoreIcon,
@@ -22,7 +23,7 @@ import {
 type Wallet = { balance: number; total_earned: number };
 type Tx = { id: string; amount: number; type: string; description: string | null; created_at: string };
 type Profile = { full_name: string | null };
-type DashboardTab = "overview" | "orders" | "withdrawal" | "settings";
+type DashboardTab = "overview" | "packages" | "orders" | "withdrawal" | "settings";
 type Store = {
   id: string;
   slug: string;
@@ -51,6 +52,15 @@ type Withdrawal = {
   account_name: string;
   status: "pending" | "approved" | "rejected" | "paid";
   created_at: string;
+};
+type CheckerPricingItem = {
+  id: string;
+  name: string;
+  type: "data" | "checker";
+  network: string;
+  data_volume_mb: number | null;
+  agent_price: number;
+  myProfit: number;
 };
 
 const slugify = (value: string) =>
@@ -93,6 +103,9 @@ export default function Dashboard() {
   const [orderCount, setOrderCount] = useState(0);
   const [storeOrders, setStoreOrders] = useState<StoreOrder[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [checkerPricing, setCheckerPricing] = useState<CheckerPricingItem[]>([]);
+  const [pricingBusyId, setPricingBusyId] = useState<string | null>(null);
+  const [pricingMsg, setPricingMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [minWithdrawal, setMinWithdrawal] = useState(50);
@@ -115,7 +128,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [w, t, p, s, o, wr, ss, so] = await Promise.all([
+      const [w, t, p, s, o, wr, ss, so, cp, pp] = await Promise.all([
         supabase.from("wallets").select("balance,total_earned").eq("user_id", user.id).maybeSingle(),
         supabase
           .from("wallet_transactions")
@@ -143,6 +156,18 @@ export default function Dashboard() {
           .eq("store_owner_id", user.id)
           .order("created_at", { ascending: false })
           .limit(40),
+        supabase
+          .from("products")
+          .select("id,name,type,network,data_volume_mb,agent_price")
+          .eq("is_active", true)
+          .order("type", { ascending: true })
+          .order("network", { ascending: true })
+          .order("data_volume_mb", { ascending: true })
+          .order("name", { ascending: true }),
+        supabase
+          .from("store_product_pricing")
+          .select("product_id,profit")
+          .eq("user_id", user.id),
       ]);
 
       setWallet((w.data as Wallet) || { balance: 0, total_earned: 0 });
@@ -152,6 +177,17 @@ export default function Dashboard() {
       setOrderCount(o.count || 0);
       setWithdrawals((wr.data as Withdrawal[]) || []);
       setStoreOrders((so.data as StoreOrder[]) || []);
+      const profitMap = new Map<string, number>((pp.data || []).map((row: any) => [row.product_id, Number(row.profit || 0)]));
+      const checkerItems = ((cp.data as any[]) || []).map((item) => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        network: item.network,
+        data_volume_mb: item.data_volume_mb,
+        agent_price: Number(item.agent_price || 0),
+        myProfit: profitMap.get(item.id) ?? 0,
+      }));
+      setCheckerPricing(checkerItems);
       if (ss.data?.min_withdrawal) setMinWithdrawal(Number(ss.data.min_withdrawal));
 
       if (s.data) {
@@ -323,6 +359,45 @@ export default function Dashboard() {
     setSettingsMsg("Store settings saved.");
   };
 
+  const changeCheckerProfit = (id: string, value: string) => {
+    setCheckerPricing((prev) => prev.map((item) => (item.id === id ? { ...item, myProfit: Number(value || 0) } : item)));
+  };
+
+  const saveCheckerProfit = async (productId: string) => {
+    if (!user) return;
+    const item = checkerPricing.find((entry) => entry.id === productId);
+    if (!item) return;
+
+    const profit = Number(item.myProfit || 0);
+    if (!isFinite(profit) || profit < 0) {
+      setPricingMsg("Profit must be zero or greater.");
+      return;
+    }
+
+    setPricingMsg(null);
+    setPricingBusyId(productId);
+    const { error } = await supabase.from("store_product_pricing").upsert({
+      user_id: user.id,
+      product_id: productId,
+      profit,
+    });
+    setPricingBusyId(null);
+
+    if (error) {
+      setPricingMsg(error.message);
+      return;
+    }
+    setPricingMsg("Store package profit saved.");
+  };
+
+  const formatPackageLabel = (item: CheckerPricingItem) => {
+    if (item.type === "checker") return item.name;
+    if (!item.data_volume_mb) return item.name;
+    const gb = item.data_volume_mb / 1024;
+    const volume = Number.isInteger(gb) ? `${gb}GB` : `${gb.toFixed(1)}GB`;
+    return `${item.network.toUpperCase()} ${volume}`;
+  };
+
   return (
     <div className="container py-10 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -337,6 +412,7 @@ export default function Dashboard() {
 
       <div className="flex flex-wrap gap-2">
         <TabButton label="Overview" active={tab === "overview"} onClick={() => setTab("overview")} />
+        <TabButton label="Store Packages" active={tab === "packages"} onClick={() => setTab("packages")} icon={<Package className="h-4 w-4" />} />
         <TabButton label="Store Orders" active={tab === "orders"} onClick={() => setTab("orders")} icon={<PackageSearch className="h-4 w-4" />} />
         <TabButton label="Withdrawal" active={tab === "withdrawal"} onClick={() => setTab("withdrawal")} icon={<WalletIcon className="h-4 w-4" />} />
         <TabButton label="Store Settings" active={tab === "settings"} onClick={() => setTab("settings")} icon={<Settings className="h-4 w-4" />} />
@@ -447,7 +523,55 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </div>
+
         </>
+      )}
+
+      {tab === "packages" && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="font-display text-xl font-bold mb-1">Store Packages</h2>
+            <p className="text-sm text-muted-foreground mb-5">Set your profit for each package. Selling price on your store = agent price + your profit.</p>
+
+            {!isAgent ? (
+              <p className="text-sm text-muted-foreground">Activate your agent account to manage store package pricing.</p>
+            ) : checkerPricing.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No active products available yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {checkerPricing.map((item) => (
+                  <div key={item.id} className="rounded-lg border border-border/70 p-3 flex flex-wrap items-center gap-3 justify-between">
+                    <div>
+                      <div className="font-semibold">{formatPackageLabel(item)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {item.type === "checker" ? "Checker" : item.network.toUpperCase()} · Base {formatGHS(item.agent_price)} · Selling {formatGHS(item.agent_price + Number(item.myProfit || 0))}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="w-32"
+                        value={item.myProfit}
+                        onChange={(e) => changeCheckerProfit(item.id, e.target.value)}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => saveCheckerProfit(item.id)}
+                        disabled={pricingBusyId === item.id}
+                      >
+                        {pricingBusyId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {pricingMsg && <p className={cn("text-sm mt-3", pricingMsg.toLowerCase().includes("saved") ? "text-success" : "text-destructive")}>{pricingMsg}</p>}
+          </CardContent>
+        </Card>
       )}
 
       {tab === "orders" && (
