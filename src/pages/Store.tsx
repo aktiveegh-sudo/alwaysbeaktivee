@@ -46,18 +46,18 @@ type NetworkKey = "mtn" | "telecel" | "airteltigo" | "other";
 const NETWORK_META: Record<NetworkKey, { label: string; card: string; pill: string }> = {
   mtn: {
     label: "MTN",
-    card: "border-yellow-300/70 bg-yellow-50/80 dark:bg-yellow-500/10",
-    pill: "bg-yellow-200 text-yellow-900 dark:bg-yellow-500/30 dark:text-yellow-200",
+    card: "border-yellow-500 bg-yellow-400 text-black",
+    pill: "bg-black/15 text-black",
   },
   telecel: {
     label: "Telecel",
-    card: "border-red-300/70 bg-red-50/80 dark:bg-red-500/10",
-    pill: "bg-red-200 text-red-900 dark:bg-red-500/30 dark:text-red-200",
+    card: "border-red-700 bg-red-600 text-white",
+    pill: "bg-white/20 text-white",
   },
   airteltigo: {
     label: "AirtelTigo",
-    card: "border-blue-300/70 bg-blue-50/80 dark:bg-blue-500/10",
-    pill: "bg-blue-200 text-blue-900 dark:bg-blue-500/30 dark:text-blue-200",
+    card: "border-blue-700 bg-blue-600 text-white",
+    pill: "bg-white/20 text-white",
   },
   other: {
     label: "Other",
