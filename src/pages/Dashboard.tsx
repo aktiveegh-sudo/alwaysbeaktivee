@@ -11,6 +11,18 @@ import { ArrowDownRight, ArrowUpRight, Copy, ExternalLink, Loader2, Store as Sto
 type Wallet = { balance: number; total_earned: number };
 type Tx = { id: string; amount: number; type: string; description: string | null; created_at: string };
 type Profile = { full_name: string | null };
+type Network = "mtn" | "telecel" | "airteltigo" | "bece" | "wassce";
+type Product = {
+  id: string;
+  name: string;
+  network: Network;
+  data_volume_mb: number | null;
+  agent_price: number;
+};
+type StorePricing = {
+  product_id: string;
+  profit: number;
+};
 type Store = {
   slug: string;
   display_name: string;
@@ -40,6 +52,9 @@ export default function Dashboard() {
   const [creatingStore, setCreatingStore] = useState(false);
   const [storeError, setStoreError] = useState<string | null>(null);
   const [copyDone, setCopyDone] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [pricingMap, setPricingMap] = useState<Record<string, string>>({});
+  const [savingPrice, setSavingPrice] = useState<string | null>(null);
   const [orderCount, setOrderCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -62,11 +77,41 @@ export default function Dashboard() {
           .maybeSingle(),
         supabase.from("orders").select("id", { count: "exact", head: true }).eq("store_owner_id", user.id),
       ]);
+
+      const [productsRes, pricingRes] = await Promise.all([
+        supabase
+          .from("products")
+          .select("id,name,network,data_volume_mb,agent_price")
+          .eq("is_active", true),
+        supabase.from("store_product_pricing").select("product_id,profit").eq("user_id", user.id),
+      ]);
+
+      const networkOrder: Record<Network, number> = {
+        mtn: 0,
+        telecel: 1,
+        airteltigo: 2,
+        bece: 3,
+        wassce: 4,
+      };
+
+      const sortedProducts = ((productsRes.data as Product[]) || []).sort((a, b) => {
+        const byNetwork = (networkOrder[a.network] ?? 99) - (networkOrder[b.network] ?? 99);
+        if (byNetwork !== 0) return byNetwork;
+        return Number(a.data_volume_mb || 0) - Number(b.data_volume_mb || 0);
+      });
+
+      const map: Record<string, string> = {};
+      ((pricingRes.data as StorePricing[]) || []).forEach((row) => {
+        map[row.product_id] = String(Number(row.profit || 0));
+      });
+
       setWallet((w.data as Wallet) || { balance: 0, total_earned: 0 });
       setTxs((t.data as Tx[]) || []);
       setProfile(p.data as Profile);
       setStore(s.data as Store);
       setOrderCount(o.count || 0);
+      setProducts(sortedProducts);
+      setPricingMap(map);
       setLoading(false);
     })();
   }, [user]);
@@ -157,6 +202,31 @@ export default function Dashboard() {
     } catch {
       setStoreError("Could not copy link. Please copy it manually.");
     }
+  };
+
+  const groupedProducts = products.reduce<Record<Network, Product[]>>((acc, p) => {
+    (acc[p.network] ||= []).push(p);
+    return acc;
+  }, {} as Record<Network, Product[]>);
+
+  const saveProfit = async (productId: string) => {
+    if (!user || !store) return;
+    const profit = Number(pricingMap[productId] || 0);
+    if (!isFinite(profit) || profit < 0) {
+      setStoreError("Profit must be 0 or greater.");
+      return;
+    }
+    setSavingPrice(productId);
+    const { error } = await supabase.from("store_product_pricing").upsert(
+      {
+        user_id: user.id,
+        product_id: productId,
+        profit,
+      },
+      { onConflict: "user_id,product_id" }
+    );
+    setSavingPrice(null);
+    if (error) setStoreError(error.message);
   };
 
   return (
@@ -314,6 +384,58 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {isAgent && store && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="font-display text-xl font-bold mb-1">Store package pricing</h2>
+            <p className="text-sm text-muted-foreground mb-5">
+              Admin agent prices are the base. Add your profit per package and this selling price will show on your store.
+            </p>
+
+            <div className="space-y-6">
+              {(Object.keys(groupedProducts) as Network[]).map((network) => (
+                <div key={network}>
+                  <h3 className="font-semibold uppercase text-xs tracking-wide text-muted-foreground mb-3">{network}</h3>
+                  <div className="space-y-2">
+                    {groupedProducts[network].map((p) => {
+                      const profit = Number(pricingMap[p.id] || 0);
+                      const selling = Number(p.agent_price || 0) + (isFinite(profit) ? profit : 0);
+                      return (
+                        <div key={p.id} className="rounded-lg border border-border/70 p-3 grid gap-3 md:grid-cols-[1.8fr_1fr_1fr_auto] items-center">
+                          <div>
+                            <p className="font-semibold">{p.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Base {formatGHS(p.agent_price)}{p.data_volume_mb ? ` · ${(Number(p.data_volume_mb) / 1024).toFixed(Number(p.data_volume_mb) % 1024 === 0 ? 0 : 1)}GB` : ""}
+                            </p>
+                          </div>
+                          <div className="text-sm">
+                            <div className="text-xs text-muted-foreground">Profit</div>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={pricingMap[p.id] ?? ""}
+                              onChange={(e) => setPricingMap((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div className="text-sm">
+                            <div className="text-xs text-muted-foreground">Store price</div>
+                            <div className="font-bold mt-2">{formatGHS(selling)}</div>
+                          </div>
+                          <Button size="sm" onClick={() => saveProfit(p.id)} disabled={savingPrice === p.id}>
+                            {savingPrice === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

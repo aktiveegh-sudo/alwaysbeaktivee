@@ -298,10 +298,26 @@ function ProductsTab() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
+  const networkOrder: Record<Network, number> = {
+    mtn: 0,
+    telecel: 1,
+    airteltigo: 2,
+    bece: 3,
+    wassce: 4,
+  };
+
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("products").select("*").order("created_at", { ascending: false });
-    setItems(data || []);
+    const { data } = await supabase.from("products").select("*");
+    const sorted = (data || []).sort((a, b) => {
+      const byNetwork = (networkOrder[a.network as Network] ?? 99) - (networkOrder[b.network as Network] ?? 99);
+      if (byNetwork !== 0) return byNetwork;
+      const aMb = Number(a.data_volume_mb || 0);
+      const bMb = Number(b.data_volume_mb || 0);
+      if (aMb !== bMb) return aMb - bMb;
+      return Number(a.agent_price || 0) - Number(b.agent_price || 0);
+    });
+    setItems(sorted);
     setLoading(false);
   };
   useEffect(() => {
@@ -341,6 +357,11 @@ function ProductsTab() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{p.name}</span>
                     <span className="text-xs uppercase rounded-full px-2 py-0.5 bg-secondary">{p.network}</span>
+                    {p.data_volume_mb ? (
+                      <span className="text-xs rounded-full px-2 py-0.5 bg-muted text-muted-foreground">
+                        {(Number(p.data_volume_mb) / 1024).toFixed(Number(p.data_volume_mb) % 1024 === 0 ? 0 : 1)}GB
+                      </span>
+                    ) : null}
                     {!p.is_active && (
                       <span className="text-xs rounded-full px-2 py-0.5 bg-destructive/10 text-destructive">
                         inactive
@@ -348,7 +369,7 @@ function ProductsTab() {
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    Public {formatGHS(p.public_price)} · Agent {formatGHS(p.agent_price)}
+                    User {formatGHS(p.public_price)} · Agent Base {formatGHS(p.agent_price)}
                   </div>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => toggle(p.id, p.is_active)}>
@@ -368,29 +389,33 @@ function ProductsTab() {
 
 function ProductForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({
-    name: "",
     network: "mtn" as Network,
-    type: "data" as "data" | "checker",
+    volume_gb: "",
     public_price: "",
     agent_price: "",
-    data_volume_mb: "",
-    description: "",
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    const gb = Number(f.volume_gb);
+    if (!isFinite(gb) || gb <= 0) {
+      setErr("Enter a valid volume in GB.");
+      return;
+    }
     setSaving(true);
     setErr(null);
+    const volumeMb = Math.round(gb * 1024);
+    const productName = `${f.network.toUpperCase()} ${gb}GB`;
     const { error } = await supabase.from("products").insert({
-      name: f.name,
+      name: productName,
       network: f.network,
-      type: f.type,
+      type: "data",
       public_price: Number(f.public_price),
       agent_price: Number(f.agent_price),
-      data_volume_mb: f.data_volume_mb ? Number(f.data_volume_mb) : null,
-      description: f.description || null,
+      data_volume_mb: volumeMb,
+      description: null,
     });
     setSaving(false);
     if (error) return setErr(error.message);
@@ -402,28 +427,18 @@ function ProductForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
     <Card>
       <CardContent className="p-5">
         <form onSubmit={save} className="grid gap-3 sm:grid-cols-2">
-          <Input placeholder="Name (e.g. MTN 1GB)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required />
           <select
             className="h-11 rounded-xl border border-input bg-background px-3 text-sm"
             value={f.network}
             onChange={(e) => setF({ ...f, network: e.target.value as Network })}
           >
-            {(["mtn", "telecel", "airteltigo", "bece", "wassce"] as Network[]).map((n) => (
+            {(["mtn", "telecel", "airteltigo"] as Network[]).map((n) => (
               <option key={n} value={n}>{n.toUpperCase()}</option>
             ))}
           </select>
-          <select
-            className="h-11 rounded-xl border border-input bg-background px-3 text-sm"
-            value={f.type}
-            onChange={(e) => setF({ ...f, type: e.target.value as "data" | "checker" })}
-          >
-            <option value="data">Data bundle</option>
-            <option value="checker">Result checker</option>
-          </select>
-          <Input type="number" placeholder="Volume MB (optional)" value={f.data_volume_mb} onChange={(e) => setF({ ...f, data_volume_mb: e.target.value })} />
+          <Input type="number" step="0.1" placeholder="Volume (GB)" value={f.volume_gb} onChange={(e) => setF({ ...f, volume_gb: e.target.value })} required />
           <Input type="number" step="0.01" placeholder="Public price (GHS)" value={f.public_price} onChange={(e) => setF({ ...f, public_price: e.target.value })} required />
           <Input type="number" step="0.01" placeholder="Agent price (GHS)" value={f.agent_price} onChange={(e) => setF({ ...f, agent_price: e.target.value })} required />
-          <Input className="sm:col-span-2" placeholder="Description (optional)" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
           {err && <div className="sm:col-span-2 text-destructive text-sm">{err}</div>}
           <div className="sm:col-span-2 flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

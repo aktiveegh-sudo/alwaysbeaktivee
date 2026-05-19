@@ -34,8 +34,11 @@ type Product = {
   name: string;
   network: string;
   public_price: number;
+  agent_price: number;
   data_volume_mb: number | null;
   description: string | null;
+  selling_price?: number;
+  agent_profit?: number;
 };
 
 export default function StorePage() {
@@ -63,10 +66,35 @@ export default function StorePage() {
       setStore(s as Store);
       const { data: p } = await supabase
         .from("products")
-        .select("id, name, network, public_price, data_volume_mb, description")
+        .select("id, name, network, public_price, agent_price, data_volume_mb, description")
         .eq("is_active", true)
-        .order("public_price", { ascending: true });
-      setProducts((p as Product[]) || []);
+        .order("network", { ascending: true });
+
+      const productsData = (p as Product[]) || [];
+      const { data: pricing } = await supabase
+        .from("store_product_pricing")
+        .select("product_id, profit")
+        .eq("user_id", (s as Store).user_id);
+
+      const pricingMap = new Map<string, number>(
+        (pricing || []).map((row: any) => [row.product_id, Number(row.profit || 0)])
+      );
+
+      const pricedProducts = productsData
+        .map((prod) => {
+          const profit = pricingMap.get(prod.id) ?? 0;
+          return {
+            ...prod,
+            agent_profit: profit,
+            selling_price: Number(prod.agent_price) + Number(profit),
+          };
+        })
+        .sort((a, b) => {
+          if (a.network !== b.network) return a.network.localeCompare(b.network);
+          return Number(a.data_volume_mb || 0) - Number(b.data_volume_mb || 0);
+        });
+
+      setProducts(pricedProducts);
       setLoading(false);
     })();
   }, [slug]);
@@ -196,7 +224,7 @@ export default function StorePage() {
                   {p.description && <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{p.description}</p>}
                   <div className="mt-4 flex items-end justify-between">
                     <div className="font-display text-2xl font-bold" style={{ color: store.theme_color || undefined }}>
-                      {formatGHS(p.public_price)}
+                      {formatGHS(Number(p.selling_price ?? p.agent_price ?? p.public_price))}
                     </div>
                     <Button size="sm" style={{ background: store.theme_color || undefined }}>
                       Buy
@@ -249,13 +277,17 @@ function BuyDialog({ product, store, onClose }: { product: Product; store: Store
       return;
     }
     setSubmitting(true);
+    const sellingPrice = Number(product.selling_price ?? product.agent_price ?? product.public_price);
+    const agentProfit = Number(product.agent_profit ?? (sellingPrice - Number(product.agent_price || 0)));
+
     const { data, error: err } = await supabase
       .from("orders")
       .insert({
         product_id: product.id,
         recipient_phone: phone,
         recipient_email: email || null,
-        amount: product.public_price,
+        amount: sellingPrice,
+        agent_profit: agentProfit,
         store_owner_id: store.user_id,
       })
       .select("reference")
@@ -304,7 +336,7 @@ function BuyDialog({ product, store, onClose }: { product: Product; store: Store
                 <p className="text-muted-foreground text-sm mt-1">
                   {product.network.toUpperCase()} ·{" "}
                   <span className="font-bold" style={{ color: store.theme_color || undefined }}>
-                    {formatGHS(product.public_price)}
+                    {formatGHS(Number(product.selling_price ?? product.agent_price ?? product.public_price))}
                   </span>
                 </p>
               </div>
@@ -339,7 +371,7 @@ function BuyDialog({ product, store, onClose }: { product: Product; store: Store
                   disabled={submitting}
                   style={{ background: store.theme_color || undefined }}
                 >
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : `Pay ${formatGHS(product.public_price)}`}
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : `Pay ${formatGHS(Number(product.selling_price ?? product.agent_price ?? product.public_price))}`}
                 </Button>
               </div>
             </form>
