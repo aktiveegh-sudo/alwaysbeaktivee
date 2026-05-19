@@ -315,6 +315,7 @@ export type Database = {
           theme_color: string | null
           updated_at: string
           user_id: string
+          whatsapp_group_link: string | null
           whatsapp_number: string | null
         }
         Insert: {
@@ -328,6 +329,7 @@ export type Database = {
           theme_color?: string | null
           updated_at?: string
           user_id: string
+          whatsapp_group_link?: string | null
           whatsapp_number?: string | null
         }
         Update: {
@@ -341,6 +343,7 @@ export type Database = {
           theme_color?: string | null
           updated_at?: string
           user_id?: string
+          whatsapp_group_link?: string | null
           whatsapp_number?: string | null
         }
         Relationships: []

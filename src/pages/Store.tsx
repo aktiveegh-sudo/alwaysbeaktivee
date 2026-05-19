@@ -15,6 +15,7 @@ type Store = {
   tagline: string | null;
   logo_url: string | null;
   whatsapp_number: string | null;
+  whatsapp_group_link: string | null;
   theme_color: string | null;
   is_active: boolean;
 };
@@ -104,14 +105,18 @@ export default function StorePage() {
               {store.tagline && <p className="text-white/80 mt-1">{store.tagline}</p>}
             </div>
           </div>
-          {store.whatsapp_number && (
+          {(store.whatsapp_group_link || store.whatsapp_number) && (
             <a
-              href={`https://wa.me/${store.whatsapp_number.replace(/[^0-9]/g, "")}`}
+              href={
+                store.whatsapp_group_link ||
+                `https://wa.me/${toWhatsAppDigits(store.whatsapp_number || "")}`
+              }
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-full bg-white text-black font-semibold px-5 py-2.5 hover:bg-white/90 transition"
             >
-              <MessageCircle className="h-4 w-4" /> Chat on WhatsApp
+              <MessageCircle className="h-4 w-4" />
+              {store.whatsapp_group_link ? "Join WhatsApp Group" : "Chat on WhatsApp"}
             </a>
           )}
         </div>
@@ -153,8 +158,30 @@ export default function StorePage() {
       </section>
 
       {selected && <BuyDialog product={selected} store={store} onClose={() => setSelected(null)} />}
+
+      {(store.whatsapp_group_link || store.whatsapp_number) && (
+        <a
+          href={
+            store.whatsapp_group_link ||
+            `https://wa.me/${toWhatsAppDigits(store.whatsapp_number || "")}`
+          }
+          target="_blank"
+          rel="noreferrer"
+          aria-label={store.whatsapp_group_link ? "Join WhatsApp group" : "Chat on WhatsApp"}
+          className="fixed bottom-6 right-6 z-50 inline-flex items-center gap-2 rounded-full bg-success text-success-foreground px-4 py-3 font-semibold shadow-glow transition-transform hover:scale-105"
+        >
+          <MessageCircle className="h-5 w-5" />
+          <span className="text-sm">{store.whatsapp_group_link ? "Join group" : "WhatsApp"}</span>
+        </a>
+      )}
     </div>
   );
+}
+
+function toWhatsAppDigits(number: string) {
+  const digits = number.replace(/\D/g, "");
+  if (digits.startsWith("0") && digits.length === 10) return `233${digits.slice(1)}`;
+  return digits;
 }
 
 function BuyDialog({ product, store, onClose }: { product: Product; store: Store; onClose: () => void }) {
