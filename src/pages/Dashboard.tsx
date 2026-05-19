@@ -5,30 +5,53 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatGHS } from "@/lib/utils";
-import { ArrowDownRight, ArrowUpRight, Copy, ExternalLink, Loader2, Store as StoreIcon, Users, Wallet as WalletIcon } from "lucide-react";
+import { formatGHS, cn } from "@/lib/utils";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Copy,
+  ExternalLink,
+  Loader2,
+  PackageSearch,
+  Settings,
+  Store as StoreIcon,
+  Users,
+  Wallet as WalletIcon,
+} from "lucide-react";
 
 type Wallet = { balance: number; total_earned: number };
 type Tx = { id: string; amount: number; type: string; description: string | null; created_at: string };
 type Profile = { full_name: string | null };
-type Network = "mtn" | "telecel" | "airteltigo" | "bece" | "wassce";
-type Product = {
-  id: string;
-  name: string;
-  network: Network;
-  data_volume_mb: number | null;
-  agent_price: number;
-};
-type StorePricing = {
-  product_id: string;
-  profit: number;
-};
+type DashboardTab = "overview" | "orders" | "withdrawal" | "settings";
 type Store = {
+  id: string;
   slug: string;
   display_name: string;
+  tagline: string | null;
   whatsapp_number: string | null;
   whatsapp_group_link: string | null;
+  theme_color: string | null;
+  is_active: boolean;
 } | null;
+type StoreOrder = {
+  id: string;
+  reference: string;
+  amount: number;
+  status: "processing" | "delivered" | "failed" | "refunded";
+  recipient_phone: string;
+  created_at: string;
+  agent_profit: number | null;
+  products?: { name?: string; network?: string } | null;
+};
+type Withdrawal = {
+  id: string;
+  amount: number;
+  momo_number: string;
+  network: string;
+  account_name: string;
+  status: "pending" | "approved" | "rejected" | "paid";
+  created_at: string;
+};
 
 const slugify = (value: string) =>
   value
@@ -40,8 +63,23 @@ const slugify = (value: string) =>
     .replace(/^-|-$/g, "")
     .slice(0, 50);
 
+const ORDER_STATUS_COLOR: Record<StoreOrder["status"], string> = {
+  processing: "bg-gold/15 text-gold",
+  delivered: "bg-success/15 text-success",
+  failed: "bg-destructive/15 text-destructive",
+  refunded: "bg-muted text-muted-foreground",
+};
+
+const WITHDRAW_STATUS_COLOR: Record<Withdrawal["status"], string> = {
+  pending: "bg-gold/15 text-gold",
+  approved: "bg-primary/15 text-primary",
+  rejected: "bg-destructive/15 text-destructive",
+  paid: "bg-success/15 text-success",
+};
+
 export default function Dashboard() {
   const { user, roles, signOut } = useAuth();
+  const [tab, setTab] = useState<DashboardTab>("overview");
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -52,16 +90,32 @@ export default function Dashboard() {
   const [creatingStore, setCreatingStore] = useState(false);
   const [storeError, setStoreError] = useState<string | null>(null);
   const [copyDone, setCopyDone] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [pricingMap, setPricingMap] = useState<Record<string, string>>({});
-  const [savingPrice, setSavingPrice] = useState<string | null>(null);
   const [orderCount, setOrderCount] = useState(0);
+  const [storeOrders, setStoreOrders] = useState<StoreOrder[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [minWithdrawal, setMinWithdrawal] = useState(50);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawMomo, setWithdrawMomo] = useState("");
+  const [withdrawNetwork, setWithdrawNetwork] = useState("mtn");
+  const [withdrawAccountName, setWithdrawAccountName] = useState("");
+  const [withdrawErr, setWithdrawErr] = useState<string | null>(null);
+  const [withdrawBusy, setWithdrawBusy] = useState(false);
+
+  const [settingsName, setSettingsName] = useState("");
+  const [settingsTagline, setSettingsTagline] = useState("");
+  const [settingsWhatsapp, setSettingsWhatsapp] = useState("");
+  const [settingsGroupLink, setSettingsGroupLink] = useState("");
+  const [settingsColor, setSettingsColor] = useState("#facc15");
+  const [settingsActive, setSettingsActive] = useState(true);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [w, t, p, s, o] = await Promise.all([
+      const [w, t, p, s, o, wr, ss, so] = await Promise.all([
         supabase.from("wallets").select("balance,total_earned").eq("user_id", user.id).maybeSingle(),
         supabase
           .from("wallet_transactions")
@@ -72,46 +126,42 @@ export default function Dashboard() {
         supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
         supabase
           .from("stores")
-          .select("slug,display_name,whatsapp_number,whatsapp_group_link")
+          .select("id,slug,display_name,tagline,whatsapp_number,whatsapp_group_link,theme_color,is_active")
           .eq("user_id", user.id)
           .maybeSingle(),
         supabase.from("orders").select("id", { count: "exact", head: true }).eq("store_owner_id", user.id),
-      ]);
-
-      const [productsRes, pricingRes] = await Promise.all([
         supabase
-          .from("products")
-          .select("id,name,network,data_volume_mb,agent_price")
-          .eq("is_active", true),
-        supabase.from("store_product_pricing").select("product_id,profit").eq("user_id", user.id),
+          .from("withdrawal_requests")
+          .select("id,amount,momo_number,network,account_name,status,created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(30),
+        supabase.from("site_settings").select("min_withdrawal").maybeSingle(),
+        supabase
+          .from("orders")
+          .select("id,reference,amount,status,recipient_phone,created_at,agent_profit,products(name,network)")
+          .eq("store_owner_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(40),
       ]);
-
-      const networkOrder: Record<Network, number> = {
-        mtn: 0,
-        telecel: 1,
-        airteltigo: 2,
-        bece: 3,
-        wassce: 4,
-      };
-
-      const sortedProducts = ((productsRes.data as Product[]) || []).sort((a, b) => {
-        const byNetwork = (networkOrder[a.network] ?? 99) - (networkOrder[b.network] ?? 99);
-        if (byNetwork !== 0) return byNetwork;
-        return Number(a.data_volume_mb || 0) - Number(b.data_volume_mb || 0);
-      });
-
-      const map: Record<string, string> = {};
-      ((pricingRes.data as StorePricing[]) || []).forEach((row) => {
-        map[row.product_id] = String(Number(row.profit || 0));
-      });
 
       setWallet((w.data as Wallet) || { balance: 0, total_earned: 0 });
       setTxs((t.data as Tx[]) || []);
       setProfile(p.data as Profile);
       setStore(s.data as Store);
       setOrderCount(o.count || 0);
-      setProducts(sortedProducts);
-      setPricingMap(map);
+      setWithdrawals((wr.data as Withdrawal[]) || []);
+      setStoreOrders((so.data as StoreOrder[]) || []);
+      if (ss.data?.min_withdrawal) setMinWithdrawal(Number(ss.data.min_withdrawal));
+
+      if (s.data) {
+        setSettingsName(s.data.display_name || "");
+        setSettingsTagline(s.data.tagline || "");
+        setSettingsWhatsapp(s.data.whatsapp_number || "");
+        setSettingsGroupLink(s.data.whatsapp_group_link || "");
+        setSettingsColor(s.data.theme_color || "#facc15");
+        setSettingsActive(Boolean(s.data.is_active));
+      }
       setLoading(false);
     })();
   }, [user]);
@@ -135,18 +185,9 @@ export default function Dashboard() {
     const whatsapp = supportWhatsapp.trim();
     const group = groupLink.trim();
 
-    if (name.length < 3) {
-      setStoreError("Store name must be at least 3 characters.");
-      return;
-    }
-    if (!/^\+?[0-9\s()-]{9,20}$/.test(whatsapp)) {
-      setStoreError("Enter a valid support WhatsApp number.");
-      return;
-    }
-    if (group && !/^https:\/\//i.test(group)) {
-      setStoreError("WhatsApp group link must start with https://");
-      return;
-    }
+    if (name.length < 3) return setStoreError("Store name must be at least 3 characters.");
+    if (!/^\+?[0-9\s()-]{9,20}$/.test(whatsapp)) return setStoreError("Enter a valid support WhatsApp number.");
+    if (group && !/^https:\/\//i.test(group)) return setStoreError("WhatsApp group link must start with https://");
 
     const base = slugify(name) || `store-${user.id.slice(0, 6)}`;
     setCreatingStore(true);
@@ -165,14 +206,13 @@ export default function Dashboard() {
           whatsapp_number: whatsapp,
           whatsapp_group_link: group || null,
         })
-        .select("slug,display_name,whatsapp_number,whatsapp_group_link")
+        .select("id,slug,display_name,tagline,whatsapp_number,whatsapp_group_link,theme_color,is_active")
         .single();
 
       if (!error) {
         created = data as Store;
         break;
       }
-
       const duplicateSlug = error.code === "23505" && error.message.toLowerCase().includes("slug");
       if (!duplicateSlug) {
         errorMessage = error.message;
@@ -188,6 +228,13 @@ export default function Dashboard() {
     }
 
     setStore(created);
+    setSettingsName(created.display_name || "");
+    setSettingsTagline(created.tagline || "");
+    setSettingsWhatsapp(created.whatsapp_number || "");
+    setSettingsGroupLink(created.whatsapp_group_link || "");
+    setSettingsColor(created.theme_color || "#facc15");
+    setSettingsActive(Boolean(created.is_active));
+
     setStoreName("");
     setSupportWhatsapp("");
     setGroupLink("");
@@ -204,29 +251,76 @@ export default function Dashboard() {
     }
   };
 
-  const groupedProducts = products.reduce<Record<Network, Product[]>>((acc, p) => {
-    (acc[p.network] ||= []).push(p);
-    return acc;
-  }, {} as Record<Network, Product[]>);
+  const submitWithdrawal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setWithdrawErr(null);
+    const amount = Number(withdrawAmount);
+    if (!isFinite(amount) || amount <= 0) return setWithdrawErr("Enter a valid withdrawal amount.");
+    if (amount < minWithdrawal) return setWithdrawErr(`Minimum withdrawal is ${formatGHS(minWithdrawal)}.`);
+    if (amount > Number(wallet?.balance || 0)) return setWithdrawErr("Withdrawal amount exceeds wallet balance.");
+    if (!/^\d{10,15}$/.test(withdrawMomo.replace(/\D/g, ""))) return setWithdrawErr("Enter a valid MoMo number.");
+    if (withdrawAccountName.trim().length < 3) return setWithdrawErr("Enter a valid account name.");
 
-  const saveProfit = async (productId: string) => {
-    if (!user || !store) return;
-    const profit = Number(pricingMap[productId] || 0);
-    if (!isFinite(profit) || profit < 0) {
-      setStoreError("Profit must be 0 or greater.");
+    setWithdrawBusy(true);
+    const { error } = await supabase.from("withdrawal_requests").insert({
+      user_id: user.id,
+      amount,
+      momo_number: withdrawMomo.trim(),
+      network: withdrawNetwork,
+      account_name: withdrawAccountName.trim(),
+    });
+    setWithdrawBusy(false);
+    if (error) return setWithdrawErr(error.message);
+
+    const { data } = await supabase
+      .from("withdrawal_requests")
+      .select("id,amount,momo_number,network,account_name,status,created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    setWithdrawals((data as Withdrawal[]) || []);
+    setWithdrawAmount("");
+    setWithdrawMomo("");
+    setWithdrawAccountName("");
+  };
+
+  const saveStoreSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!store || !user) return;
+    setSettingsMsg(null);
+    if (settingsName.trim().length < 3) {
+      setSettingsMsg("Store name must be at least 3 characters.");
       return;
     }
-    setSavingPrice(productId);
-    const { error } = await supabase.from("store_product_pricing").upsert(
-      {
-        user_id: user.id,
-        product_id: productId,
-        profit,
-      },
-      { onConflict: "user_id,product_id" }
-    );
-    setSavingPrice(null);
-    if (error) setStoreError(error.message);
+    if (settingsWhatsapp.trim() && !/^\+?[0-9\s()-]{9,20}$/.test(settingsWhatsapp.trim())) {
+      setSettingsMsg("Support WhatsApp number looks invalid.");
+      return;
+    }
+    if (settingsGroupLink.trim() && !/^https:\/\//i.test(settingsGroupLink.trim())) {
+      setSettingsMsg("Group link must start with https://");
+      return;
+    }
+
+    setSettingsBusy(true);
+    const { error, data } = await supabase
+      .from("stores")
+      .update({
+        display_name: settingsName.trim(),
+        tagline: settingsTagline.trim() || null,
+        whatsapp_number: settingsWhatsapp.trim() || null,
+        whatsapp_group_link: settingsGroupLink.trim() || null,
+        theme_color: settingsColor,
+        is_active: settingsActive,
+      })
+      .eq("id", store.id)
+      .select("id,slug,display_name,tagline,whatsapp_number,whatsapp_group_link,theme_color,is_active")
+      .single();
+    setSettingsBusy(false);
+    if (error) return setSettingsMsg(error.message);
+
+    setStore(data as Store);
+    setSettingsMsg("Store settings saved.");
   };
 
   return (
@@ -238,205 +332,260 @@ export default function Dashboard() {
             {isAgent ? "Manage your wallet, store and orders." : "Activate your agent account to start earning."}
           </p>
         </div>
-        <Button variant="outline" onClick={signOut}>
-          Sign out
-        </Button>
+        <Button variant="outline" onClick={signOut}>Sign out</Button>
       </div>
 
-      {!isAgent && (
-        <Card className="border-gold/40 bg-gradient-to-br from-gold/10 to-transparent">
-          <CardContent className="p-6 flex flex-wrap items-center gap-4 justify-between">
-            <div>
-              <h2 className="font-display text-xl font-bold">Activate your agent account</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Pay the one-time signup fee to unlock your mini-store and agent pricing.
-              </p>
-            </div>
-            <Button>Pay activation fee</Button>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid sm:grid-cols-3 gap-4">
-        <StatCard
-          icon={WalletIcon}
-          label="Wallet balance"
-          value={formatGHS(wallet?.balance || 0)}
-          accent="text-gold"
-        />
-        <StatCard
-          icon={ArrowUpRight}
-          label="Total earned"
-          value={formatGHS(wallet?.total_earned || 0)}
-          accent="text-success"
-        />
-        <StatCard icon={Users} label="Orders" value={String(orderCount)} accent="text-primary" />
+      <div className="flex flex-wrap gap-2">
+        <TabButton label="Overview" active={tab === "overview"} onClick={() => setTab("overview")} />
+        <TabButton label="Store Orders" active={tab === "orders"} onClick={() => setTab("orders")} icon={<PackageSearch className="h-4 w-4" />} />
+        <TabButton label="Withdrawal" active={tab === "withdrawal"} onClick={() => setTab("withdrawal")} icon={<WalletIcon className="h-4 w-4" />} />
+        <TabButton label="Store Settings" active={tab === "settings"} onClick={() => setTab("settings")} icon={<Settings className="h-4 w-4" />} />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-xl font-bold">Recent transactions</h2>
-              <Button size="sm" variant="outline">
-                Withdraw
-              </Button>
-            </div>
-            {txs.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No transactions yet.</p>
-            ) : (
-              <div className="divide-y">
-                {txs.map((t) => {
-                  const positive = ["topup", "earning", "referral_bonus", "refund"].includes(t.type);
-                  return (
-                    <div key={t.id} className="flex items-center justify-between py-3">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`grid h-9 w-9 place-items-center rounded-full ${
-                            positive ? "bg-success/15 text-success" : "bg-primary/15 text-primary"
-                          }`}
-                        >
-                          {positive ? <ArrowDownRight className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
-                        </span>
-                        <div>
-                          <div className="font-medium text-sm capitalize">{t.type.replace(/_/g, " ")}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {new Date(t.created_at).toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                      <div className={`font-bold ${positive ? "text-success" : "text-foreground"}`}>
-                        {positive ? "+" : "−"}
-                        {formatGHS(Math.abs(Number(t.amount)))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <StoreIcon className="h-5 w-5 text-primary" />
-              <h2 className="font-display text-lg font-bold">Your store</h2>
-            </div>
-            {store ? (
-              <>
-                <p className="text-sm text-muted-foreground">{store.display_name}</p>
-                <div className="mt-2 rounded-lg bg-secondary p-2 text-xs break-all">{storeUrl}</div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <Button asChild size="sm" variant="outline">
-                    <Link to={`/store/${store.slug}`} target="_blank" rel="noreferrer">
-                      <ExternalLink className="h-4 w-4" /> Open
-                    </Link>
-                  </Button>
-                  <Button size="sm" onClick={copyStoreLink}>
-                    <Copy className="h-4 w-4" /> {copyDone ? "Copied" : "Copy link"}
-                  </Button>
+      {tab === "overview" && (
+        <>
+          {!isAgent && (
+            <Card className="border-gold/40 bg-gradient-to-br from-gold/10 to-transparent">
+              <CardContent className="p-6 flex flex-wrap items-center gap-4 justify-between">
+                <div>
+                  <h2 className="font-display text-xl font-bold">Activate your agent account</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Pay the one-time signup fee to unlock your mini-store and agent pricing.
+                  </p>
                 </div>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Create your mini-store with your store name and support WhatsApp details.
-                </p>
-                <form className="mt-4 space-y-3" onSubmit={createStore}>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Store name</label>
-                    <Input
-                      value={storeName}
-                      onChange={(e) => setStoreName(e.target.value)}
-                      placeholder="e.g. Kings Data Hub"
-                      disabled={!isAgent || creatingStore}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Support WhatsApp number</label>
-                    <Input
-                      value={supportWhatsapp}
-                      onChange={(e) => setSupportWhatsapp(e.target.value)}
-                      placeholder="e.g. 0241234567"
-                      disabled={!isAgent || creatingStore}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">WhatsApp group link (optional)</label>
-                    <Input
-                      type="url"
-                      value={groupLink}
-                      onChange={(e) => setGroupLink(e.target.value)}
-                      placeholder="https://chat.whatsapp.com/..."
-                      disabled={!isAgent || creatingStore}
-                    />
-                  </div>
-                  {storeError && <p className="text-xs text-destructive">{storeError}</p>}
-                  <Button type="submit" size="sm" className="w-full" disabled={!isAgent || creatingStore}>
-                    {creatingStore ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create store"}
-                  </Button>
-                </form>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                <Button>Pay activation fee</Button>
+              </CardContent>
+            </Card>
+          )}
 
-      {isAgent && store && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="font-display text-xl font-bold mb-1">Store package pricing</h2>
-            <p className="text-sm text-muted-foreground mb-5">
-              Admin agent prices are the base. Add your profit per package and this selling price will show on your store.
-            </p>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <StatCard icon={WalletIcon} label="Wallet balance" value={formatGHS(wallet?.balance || 0)} accent="text-gold" />
+            <StatCard icon={ArrowUpRight} label="Total earned" value={formatGHS(wallet?.total_earned || 0)} accent="text-success" />
+            <StatCard icon={Users} label="Orders" value={String(orderCount)} accent="text-primary" />
+          </div>
 
-            <div className="space-y-6">
-              {(Object.keys(groupedProducts) as Network[]).map((network) => (
-                <div key={network}>
-                  <h3 className="font-semibold uppercase text-xs tracking-wide text-muted-foreground mb-3">{network}</h3>
-                  <div className="space-y-2">
-                    {groupedProducts[network].map((p) => {
-                      const profit = Number(pricingMap[p.id] || 0);
-                      const selling = Number(p.agent_price || 0) + (isFinite(profit) ? profit : 0);
+          <div className="grid lg:grid-cols-3 gap-4">
+            <Card className="lg:col-span-2">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-display text-xl font-bold">Recent transactions</h2>
+                  <Button size="sm" variant="outline" onClick={() => setTab("withdrawal")}>Withdraw</Button>
+                </div>
+                {txs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">No transactions yet.</p>
+                ) : (
+                  <div className="divide-y">
+                    {txs.map((t) => {
+                      const positive = ["topup", "earning", "referral_bonus", "refund"].includes(t.type);
                       return (
-                        <div key={p.id} className="rounded-lg border border-border/70 p-3 grid gap-3 md:grid-cols-[1.8fr_1fr_1fr_auto] items-center">
-                          <div>
-                            <p className="font-semibold">{p.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Base {formatGHS(p.agent_price)}{p.data_volume_mb ? ` · ${(Number(p.data_volume_mb) / 1024).toFixed(Number(p.data_volume_mb) % 1024 === 0 ? 0 : 1)}GB` : ""}
-                            </p>
+                        <div key={t.id} className="flex items-center justify-between py-3">
+                          <div className="flex items-center gap-3">
+                            <span className={`grid h-9 w-9 place-items-center rounded-full ${positive ? "bg-success/15 text-success" : "bg-primary/15 text-primary"}`}>
+                              {positive ? <ArrowDownRight className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                            </span>
+                            <div>
+                              <div className="font-medium text-sm capitalize">{t.type.replace(/_/g, " ")}</div>
+                              <div className="text-xs text-muted-foreground">{new Date(t.created_at).toLocaleString()}</div>
+                            </div>
                           </div>
-                          <div className="text-sm">
-                            <div className="text-xs text-muted-foreground">Profit</div>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={pricingMap[p.id] ?? ""}
-                              onChange={(e) => setPricingMap((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                              placeholder="0.00"
-                            />
+                          <div className={`font-bold ${positive ? "text-success" : "text-foreground"}`}>
+                            {positive ? "+" : "−"}
+                            {formatGHS(Math.abs(Number(t.amount)))}
                           </div>
-                          <div className="text-sm">
-                            <div className="text-xs text-muted-foreground">Store price</div>
-                            <div className="font-bold mt-2">{formatGHS(selling)}</div>
-                          </div>
-                          <Button size="sm" onClick={() => saveProfit(p.id)} disabled={savingPrice === p.id}>
-                            {savingPrice === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                          </Button>
                         </div>
                       );
                     })}
                   </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <StoreIcon className="h-5 w-5 text-primary" />
+                  <h2 className="font-display text-lg font-bold">Your store</h2>
                 </div>
-              ))}
-            </div>
+                {store ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">{store.display_name}</p>
+                    <div className="mt-2 rounded-lg bg-secondary p-2 text-xs break-all">{storeUrl}</div>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={`/store/${store.slug}`} target="_blank" rel="noreferrer">
+                          <ExternalLink className="h-4 w-4" /> Open
+                        </Link>
+                      </Button>
+                      <Button size="sm" onClick={copyStoreLink}>
+                        <Copy className="h-4 w-4" /> {copyDone ? "Copied" : "Copy link"}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">Create your mini-store with your store name and support WhatsApp details.</p>
+                    <form className="mt-4 space-y-3" onSubmit={createStore}>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold">Store name</label>
+                        <Input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="e.g. Kings Data Hub" disabled={!isAgent || creatingStore} required />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold">Support WhatsApp number</label>
+                        <Input value={supportWhatsapp} onChange={(e) => setSupportWhatsapp(e.target.value)} placeholder="e.g. 0241234567" disabled={!isAgent || creatingStore} required />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold">WhatsApp group link (optional)</label>
+                        <Input type="url" value={groupLink} onChange={(e) => setGroupLink(e.target.value)} placeholder="https://chat.whatsapp.com/..." disabled={!isAgent || creatingStore} />
+                      </div>
+                      {storeError && <p className="text-xs text-destructive">{storeError}</p>}
+                      <Button type="submit" size="sm" className="w-full" disabled={!isAgent || creatingStore}>
+                        {creatingStore ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create store"}
+                      </Button>
+                    </form>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {tab === "orders" && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="font-display text-xl font-bold mb-1">Store Orders</h2>
+            <p className="text-sm text-muted-foreground mb-5">Orders placed through your store.</p>
+            {!store ? (
+              <p className="text-sm text-muted-foreground">Create your store first to start receiving orders.</p>
+            ) : storeOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No store orders yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {storeOrders.map((o) => (
+                  <div key={o.id} className="rounded-lg border border-border/70 p-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="font-mono text-sm font-bold">{o.reference}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {(o.products?.name || "Bundle")} · {o.recipient_phone} · {new Date(o.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div className="font-semibold">{formatGHS(o.amount)}</div>
+                        <div className="text-xs text-muted-foreground">Profit {formatGHS(Number(o.agent_profit || 0))}</div>
+                      </div>
+                      <span className={cn("rounded-full px-2 py-1 text-xs font-semibold uppercase", ORDER_STATUS_COLOR[o.status])}>{o.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "withdrawal" && (
+        <div className="grid lg:grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="font-display text-xl font-bold mb-1">Withdrawal</h2>
+              <p className="text-sm text-muted-foreground mb-5">
+                Minimum withdrawal: {formatGHS(minWithdrawal)} · Current balance: {formatGHS(wallet?.balance || 0)}
+              </p>
+              <form className="space-y-3" onSubmit={submitWithdrawal}>
+                <Input type="number" step="0.01" placeholder="Amount (GHS)" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} required />
+                <Input placeholder="MoMo number" value={withdrawMomo} onChange={(e) => setWithdrawMomo(e.target.value)} required />
+                <select className="h-11 rounded-xl border border-input bg-background px-3 text-sm w-full" value={withdrawNetwork} onChange={(e) => setWithdrawNetwork(e.target.value)}>
+                  <option value="mtn">MTN</option>
+                  <option value="telecel">Telecel</option>
+                  <option value="airteltigo">AirtelTigo</option>
+                </select>
+                <Input placeholder="Account name" value={withdrawAccountName} onChange={(e) => setWithdrawAccountName(e.target.value)} required />
+                {withdrawErr && <p className="text-sm text-destructive">{withdrawErr}</p>}
+                <Button type="submit" disabled={withdrawBusy} className="w-full">
+                  {withdrawBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Request withdrawal"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="font-display text-lg font-bold mb-3">Recent withdrawal requests</h3>
+              {withdrawals.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No requests yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {withdrawals.map((w) => (
+                    <div key={w.id} className="rounded-lg border border-border/70 p-3 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-semibold">{formatGHS(w.amount)}</div>
+                        <div className="text-xs text-muted-foreground">{w.network.toUpperCase()} · {w.momo_number} · {new Date(w.created_at).toLocaleString()}</div>
+                      </div>
+                      <span className={cn("rounded-full px-2 py-1 text-xs font-semibold uppercase", WITHDRAW_STATUS_COLOR[w.status])}>{w.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {tab === "settings" && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="font-display text-xl font-bold mb-1">Store Settings</h2>
+            <p className="text-sm text-muted-foreground mb-5">Manage your store details and support channels.</p>
+            {!store ? (
+              <p className="text-sm text-muted-foreground">Create your store in Overview first.</p>
+            ) : (
+              <form className="grid gap-3 sm:grid-cols-2" onSubmit={saveStoreSettings}>
+                <Input placeholder="Store name" className="sm:col-span-2" value={settingsName} onChange={(e) => setSettingsName(e.target.value)} required />
+                <Input placeholder="Tagline" className="sm:col-span-2" value={settingsTagline} onChange={(e) => setSettingsTagline(e.target.value)} />
+                <Input placeholder="Support WhatsApp number" value={settingsWhatsapp} onChange={(e) => setSettingsWhatsapp(e.target.value)} />
+                <Input type="url" placeholder="WhatsApp group link (optional)" value={settingsGroupLink} onChange={(e) => setSettingsGroupLink(e.target.value)} />
+                <Input type="color" value={settingsColor} onChange={(e) => setSettingsColor(e.target.value)} />
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={settingsActive} onChange={(e) => setSettingsActive(e.target.checked)} />
+                  Store active
+                </label>
+                {settingsMsg && <p className={cn("sm:col-span-2 text-sm", settingsMsg.includes("saved") ? "text-success" : "text-destructive")}>{settingsMsg}</p>}
+                <div className="sm:col-span-2 flex justify-end gap-2">
+                  <Button type="submit" disabled={settingsBusy}>{settingsBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save settings"}</Button>
+                </div>
+              </form>
+            )}
           </CardContent>
         </Card>
       )}
     </div>
+  );
+}
+
+function TabButton({
+  label,
+  active,
+  onClick,
+  icon,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition",
+        active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-secondary"
+      )}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 
