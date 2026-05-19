@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/hooks/useAuth";
@@ -19,44 +19,63 @@ import Placeholder from "@/pages/Placeholder";
 
 const qc = new QueryClient();
 
+function AppRoutes() {
+  const location = useLocation();
+  const isStoreRoute = location.pathname.startsWith("/store/");
+
+  if (isStoreRoute) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Routes>
+          <Route path="/store/:slug" element={<StorePage />} />
+          <Route path="*" element={<Placeholder title="404 - Not Found" />} />
+        </Routes>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      <Header />
+      <main className="flex-1">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/track" element={<Track />} />
+          <Route path="/become-agent" element={<BecomeAgent />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route
+            path="/dashboard"
+            element={
+              <RequireAuth>
+                <Dashboard />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <RequireAuth adminOnly>
+                <Admin />
+              </RequireAuth>
+            }
+          />
+          <Route path="*" element={<Placeholder title="404 - Not Found" />} />
+        </Routes>
+      </main>
+      <Footer />
+      <WhatsAppButton />
+    </div>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={qc}>
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
-          <div className="flex min-h-screen flex-col bg-background">
-            <Header />
-            <main className="flex-1">
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/products" element={<Products />} />
-                <Route path="/track" element={<Track />} />
-                <Route path="/become-agent" element={<BecomeAgent />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route
-                  path="/dashboard"
-                  element={
-                    <RequireAuth>
-                      <Dashboard />
-                    </RequireAuth>
-                  }
-                />
-                <Route
-                  path="/admin"
-                  element={
-                    <RequireAuth adminOnly>
-                      <Admin />
-                    </RequireAuth>
-                  }
-                />
-                <Route path="/store/:slug" element={<StorePage />} />
-                <Route path="*" element={<Placeholder title="404 — Not Found" />} />
-              </Routes>
-            </main>
-            <Footer />
-            <WhatsAppButton />
-          </div>
+          <AppRoutes />
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>
