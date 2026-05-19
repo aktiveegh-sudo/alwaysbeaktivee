@@ -41,6 +41,38 @@ type Product = {
   agent_profit?: number;
 };
 
+type NetworkKey = "mtn" | "telecel" | "airteltigo" | "other";
+
+const NETWORK_META: Record<NetworkKey, { label: string; card: string; pill: string }> = {
+  mtn: {
+    label: "MTN",
+    card: "border-yellow-300/70 bg-yellow-50/80 dark:bg-yellow-500/10",
+    pill: "bg-yellow-200 text-yellow-900 dark:bg-yellow-500/30 dark:text-yellow-200",
+  },
+  telecel: {
+    label: "Telecel",
+    card: "border-red-300/70 bg-red-50/80 dark:bg-red-500/10",
+    pill: "bg-red-200 text-red-900 dark:bg-red-500/30 dark:text-red-200",
+  },
+  airteltigo: {
+    label: "AirtelTigo",
+    card: "border-blue-300/70 bg-blue-50/80 dark:bg-blue-500/10",
+    pill: "bg-blue-200 text-blue-900 dark:bg-blue-500/30 dark:text-blue-200",
+  },
+  other: {
+    label: "Other",
+    card: "border-border/60 bg-card",
+    pill: "bg-secondary text-secondary-foreground",
+  },
+};
+
+const toNetworkKey = (network: string): NetworkKey => {
+  if (network === "mtn") return "mtn";
+  if (network === "telecel") return "telecel";
+  if (network === "airteltigo") return "airteltigo";
+  return "other";
+};
+
 export default function StorePage() {
   const { slug } = useParams<{ slug: string }>();
   const [store, setStore] = useState<Store | null>(null);
@@ -48,6 +80,7 @@ export default function StorePage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Product | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [activeNetwork, setActiveNetwork] = useState<NetworkKey>("mtn");
 
   useEffect(() => {
     if (!slug) return;
@@ -95,6 +128,11 @@ export default function StorePage() {
         });
 
       setProducts(pricedProducts);
+      const present = new Set(pricedProducts.map((prod) => toNetworkKey(prod.network)));
+      if (present.has("mtn")) setActiveNetwork("mtn");
+      else if (present.has("telecel")) setActiveNetwork("telecel");
+      else if (present.has("airteltigo")) setActiveNetwork("airteltigo");
+      else setActiveNetwork("other");
       setLoading(false);
     })();
   }, [slug]);
@@ -123,6 +161,16 @@ export default function StorePage() {
 
   const supportUrl =
     store.whatsapp_group_link || `https://wa.me/${toWhatsAppDigits(store.whatsapp_number || "")}`;
+  const networkCounts = products.reduce<Record<NetworkKey, number>>(
+    (acc, prod) => {
+      const key = toNetworkKey(prod.network);
+      acc[key] += 1;
+      return acc;
+    },
+    { mtn: 0, telecel: 0, airteltigo: 0, other: 0 }
+  );
+  const visibleNetworks = (Object.keys(networkCounts) as NetworkKey[]).filter((key) => networkCounts[key] > 0);
+  const filteredProducts = products.filter((prod) => toNetworkKey(prod.network) === activeNetwork);
 
   return (
     <div style={themeStyle} className="relative overflow-hidden min-h-screen">
@@ -199,21 +247,52 @@ export default function StorePage() {
           <span className="text-xs rounded-full bg-secondary px-3 py-1.5 font-semibold">{products.length} products</span>
         </div>
 
+        {visibleNetworks.length > 1 && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            {visibleNetworks.map((key) => {
+              const active = key === activeNetwork;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveNetwork(key)}
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                    active
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-foreground hover:bg-secondary"
+                  }`}
+                >
+                  {NETWORK_META[key].label} ({networkCounts[key]})
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {products.length === 0 ? (
           <Card>
             <CardContent className="py-16 text-center text-muted-foreground">No bundles available right now.</CardContent>
           </Card>
+        ) : filteredProducts.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 text-center text-muted-foreground">
+              No {NETWORK_META[activeNetwork].label} bundles available right now.
+            </CardContent>
+          </Card>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((p) => (
+            {filteredProducts.map((p) => {
+              const key = toNetworkKey(p.network);
+              const meta = NETWORK_META[key];
+              return (
               <Card
                 key={p.id}
                 onClick={() => setSelected(p)}
-                className="cursor-pointer transition hover:-translate-y-1.5 hover:shadow-glow border-border/60"
+                className={`cursor-pointer transition hover:-translate-y-1.5 hover:shadow-glow ${meta.card}`}
               >
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-bold uppercase rounded-full px-2.5 py-1 bg-secondary">{p.network}</span>
+                    <span className={`text-xs font-bold uppercase rounded-full px-2.5 py-1 ${meta.pill}`}>{meta.label}</span>
                     {p.data_volume_mb && (
                       <span className="text-xs text-muted-foreground">
                         {p.data_volume_mb >= 1024 ? `${(p.data_volume_mb / 1024).toFixed(1)}GB` : `${p.data_volume_mb}MB`}
@@ -232,7 +311,8 @@ export default function StorePage() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
