@@ -9,12 +9,14 @@ import { formatGHS, cn } from "@/lib/utils";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  CheckCircle2,
   Copy,
   ExternalLink,
   Loader2,
   Package,
   PackageSearch,
   Settings,
+  ShoppingCart,
   Store as StoreIcon,
   Users,
   Wallet as WalletIcon,
@@ -23,7 +25,8 @@ import {
 type Wallet = { balance: number; total_earned: number };
 type Tx = { id: string; amount: number; type: string; description: string | null; created_at: string };
 type Profile = { full_name: string | null };
-type DashboardTab = "overview" | "packages" | "orders" | "withdrawal" | "settings";
+type DashboardTab = "overview" | "buy" | "packages" | "orders" | "withdrawal" | "settings";
+type NetworkKey = "mtn" | "telecel" | "airteltigo" | "other";
 type Store = {
   id: string;
   slug: string;
@@ -87,6 +90,20 @@ const WITHDRAW_STATUS_COLOR: Record<Withdrawal["status"], string> = {
   paid: "bg-success/15 text-success",
 };
 
+const toNetworkKey = (network: string): NetworkKey => {
+  if (network === "mtn") return "mtn";
+  if (network === "telecel") return "telecel";
+  if (network === "airteltigo") return "airteltigo";
+  return "other";
+};
+
+const NETWORK_LABEL: Record<NetworkKey, string> = {
+  mtn: "MTN",
+  telecel: "Telecel",
+  airteltigo: "AirtelTigo",
+  other: "Other",
+};
+
 export default function Dashboard() {
   const { user, roles, signOut } = useAuth();
   const [tab, setTab] = useState<DashboardTab>("overview");
@@ -104,6 +121,8 @@ export default function Dashboard() {
   const [storeOrders, setStoreOrders] = useState<StoreOrder[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [checkerPricing, setCheckerPricing] = useState<CheckerPricingItem[]>([]);
+  const [buyNetwork, setBuyNetwork] = useState<NetworkKey>("mtn");
+  const [selectedBuyProduct, setSelectedBuyProduct] = useState<CheckerPricingItem | null>(null);
   const [pricingBusyId, setPricingBusyId] = useState<string | null>(null);
   const [pricingMsg, setPricingMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -188,6 +207,12 @@ export default function Dashboard() {
         myProfit: profitMap.get(item.id) ?? 0,
       }));
       setCheckerPricing(checkerItems);
+      const dataItems = checkerItems.filter((item) => item.type === "data");
+      const present = new Set(dataItems.map((item) => toNetworkKey(item.network)));
+      if (present.has("mtn")) setBuyNetwork("mtn");
+      else if (present.has("telecel")) setBuyNetwork("telecel");
+      else if (present.has("airteltigo")) setBuyNetwork("airteltigo");
+      else setBuyNetwork("other");
       if (ss.data?.min_withdrawal) setMinWithdrawal(Number(ss.data.min_withdrawal));
 
       if (s.data) {
@@ -398,6 +423,19 @@ export default function Dashboard() {
     return `${item.network.toUpperCase()} ${volume}`;
   };
 
+  const dataBuyProducts = checkerPricing.filter((item) => item.type === "data");
+  const checkerBuyProducts = checkerPricing.filter((item) => item.type === "checker");
+  const buyCounts = dataBuyProducts.reduce<Record<NetworkKey, number>>(
+    (acc, item) => {
+      const key = toNetworkKey(item.network);
+      acc[key] += 1;
+      return acc;
+    },
+    { mtn: 0, telecel: 0, airteltigo: 0, other: 0 }
+  );
+  const visibleBuyNetworks = (Object.keys(buyCounts) as NetworkKey[]).filter((key) => buyCounts[key] > 0);
+  const filteredBuyDataProducts = dataBuyProducts.filter((item) => toNetworkKey(item.network) === buyNetwork);
+
   return (
     <div className="container py-10 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -412,6 +450,7 @@ export default function Dashboard() {
 
       <div className="flex flex-wrap gap-2">
         <TabButton label="Overview" active={tab === "overview"} onClick={() => setTab("overview")} />
+        <TabButton label="Buy Packages" active={tab === "buy"} onClick={() => setTab("buy")} icon={<ShoppingCart className="h-4 w-4" />} />
         <TabButton label="Store Packages" active={tab === "packages"} onClick={() => setTab("packages")} icon={<Package className="h-4 w-4" />} />
         <TabButton label="Store Orders" active={tab === "orders"} onClick={() => setTab("orders")} icon={<PackageSearch className="h-4 w-4" />} />
         <TabButton label="Withdrawal" active={tab === "withdrawal"} onClick={() => setTab("withdrawal")} icon={<WalletIcon className="h-4 w-4" />} />
@@ -525,6 +564,93 @@ export default function Dashboard() {
           </div>
 
         </>
+      )}
+
+      {tab === "buy" && (
+        <Card>
+          <CardContent className="p-6 space-y-6">
+            <div>
+              <h2 className="font-display text-xl font-bold mb-1">Buy Agent Packages</h2>
+              <p className="text-sm text-muted-foreground">Buy data bundles and checkers directly at agent prices.</p>
+            </div>
+
+            {!isAgent ? (
+              <p className="text-sm text-muted-foreground">Activate your agent account to buy at agent prices.</p>
+            ) : checkerPricing.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No products available yet.</p>
+            ) : (
+              <div className="space-y-8">
+                <div>
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <h3 className="font-display text-lg font-bold">Data Bundles</h3>
+                    <span className="text-xs rounded-full bg-secondary px-2.5 py-1 font-semibold">{dataBuyProducts.length}</span>
+                  </div>
+
+                  {visibleBuyNetworks.length > 1 && (
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      {visibleBuyNetworks.map((key) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setBuyNetwork(key)}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                            buyNetwork === key
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-background text-foreground hover:bg-secondary"
+                          )}
+                        >
+                          {NETWORK_LABEL[key]} ({buyCounts[key]})
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {dataBuyProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No data bundles available.</p>
+                  ) : filteredBuyDataProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No {NETWORK_LABEL[buyNetwork]} data bundles available.</p>
+                  ) : (
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {filteredBuyDataProducts.map((item) => (
+                        <div key={item.id} className="rounded-lg border border-border/70 p-3">
+                          <div className="font-semibold">{formatPackageLabel(item)}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">Agent price {formatGHS(item.agent_price)}</div>
+                          <Button size="sm" className="mt-3 w-full" onClick={() => setSelectedBuyProduct(item)}>
+                            Buy at agent price
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <h3 className="font-display text-lg font-bold">Checkers</h3>
+                    <span className="text-xs rounded-full bg-secondary px-2.5 py-1 font-semibold">{checkerBuyProducts.length}</span>
+                  </div>
+
+                  {checkerBuyProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No checkers available.</p>
+                  ) : (
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {checkerBuyProducts.map((item) => (
+                        <div key={item.id} className="rounded-lg border border-border/70 p-3">
+                          <div className="font-semibold">{item.name}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">Agent price {formatGHS(item.agent_price)}</div>
+                          <Button size="sm" className="mt-3 w-full" onClick={() => setSelectedBuyProduct(item)}>
+                            Buy at agent price
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {tab === "packages" && (
@@ -683,6 +809,14 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {selectedBuyProduct && user && (
+        <AgentBuyDialog
+          product={selectedBuyProduct}
+          userId={user.id}
+          onClose={() => setSelectedBuyProduct(null)}
+        />
+      )}
     </div>
   );
 }
@@ -736,5 +870,110 @@ function StatCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function AgentBuyDialog({
+  product,
+  userId,
+  onClose,
+}: {
+  product: CheckerPricingItem;
+  userId: string;
+  onClose: () => void;
+}) {
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState<{ reference: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const buyNow = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!/^0\d{9}$/.test(phone)) {
+      setError("Enter a valid 10-digit Ghana phone number.");
+      return;
+    }
+
+    setSubmitting(true);
+    const { data, error: insertError } = await supabase
+      .from("orders")
+      .insert({
+        product_id: product.id,
+        recipient_phone: phone,
+        recipient_email: email || null,
+        amount: Number(product.agent_price),
+        agent_profit: 0,
+        buyer_user_id: userId,
+        store_owner_id: userId,
+      })
+      .select("reference")
+      .single();
+    setSubmitting(false);
+
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+    setDone({ reference: data.reference });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/65 backdrop-blur-sm flex items-center justify-center p-4">
+      <Card className="w-full max-w-lg border-primary/30">
+        <CardContent className="p-6">
+          {!done ? (
+            <>
+              <h3 className="font-display text-2xl font-bold">Buy at Agent Price</h3>
+              <p className="text-sm text-muted-foreground mt-1">{product.name}</p>
+              <p className="mt-3 text-sm">
+                Amount to pay: <span className="font-bold text-primary">{formatGHS(Number(product.agent_price))}</span>
+              </p>
+
+              <form className="mt-5 space-y-3" onSubmit={buyNow}>
+                <Input placeholder="Recipient phone (e.g. 0241234567)" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+                <Input type="email" placeholder="Recipient email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} />
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <div className="flex gap-2 pt-2">
+                  <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+                  <Button type="submit" className="flex-1" disabled={submitting}>
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buy now"}
+                  </Button>
+                </div>
+              </form>
+            </>
+          ) : (
+            <>
+              <div className="inline-flex items-center gap-2 rounded-full bg-success/15 text-success px-3 py-1 text-xs font-semibold">
+                <CheckCircle2 className="h-4 w-4" /> Order Created
+              </div>
+              <h3 className="font-display text-2xl font-bold mt-3">Purchase submitted</h3>
+              <p className="text-sm text-muted-foreground mt-1">Use this reference for tracking and support.</p>
+
+              <div className="mt-4 rounded-lg border border-border p-3 flex items-center justify-between gap-2">
+                <span className="font-mono font-bold text-sm">{done.reference}</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(done.reference);
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1500);
+                  }}
+                >
+                  <Copy className="h-4 w-4" /> {copied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+
+              <div className="mt-5">
+                <Button className="w-full" onClick={onClose}>Done</Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
