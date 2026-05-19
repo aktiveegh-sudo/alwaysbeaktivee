@@ -32,7 +32,7 @@ export default function Admin() {
     <section className="container py-10">
       <header className="mb-8">
         <h1 className="font-display text-4xl font-bold">Admin Console</h1>
-        <p className="text-muted-foreground mt-1">Manage BossuData operations.</p>
+        <p className="text-muted-foreground mt-1">Manage AktiveeData operations.</p>
       </header>
 
       <div className="flex flex-wrap gap-2 mb-8 border-b border-border overflow-x-auto">

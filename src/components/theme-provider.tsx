@@ -4,7 +4,7 @@ type Theme = "light" | "dark" | "system";
 type Ctx = { theme: Theme; setTheme: (t: Theme) => void; resolved: "light" | "dark" };
 
 const ThemeContext = createContext<Ctx | null>(null);
-const KEY = "bossudata-theme";
+const KEY = "aktiveedata-theme";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(

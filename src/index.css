@@ -5,30 +5,28 @@
 @tailwind utilities;
 
 @layer base {
-  /* BossuData — Dark default. Black base, red CTA, gold reward */
+  /* AktiveeData visual system: yellow + black + glass surfaces */
   :root {
     /* LIGHT MODE */
-    --background: 0 0% 98%;
+    --background: 48 100% 97%;
     --foreground: 0 0% 8%;
 
-    --card: 0 0% 100%;
+    --card: 48 100% 99%;
     --card-foreground: 0 0% 8%;
 
-    --popover: 0 0% 100%;
+    --popover: 48 100% 99%;
     --popover-foreground: 0 0% 8%;
 
-    /* Red primary CTA */
-    --primary: 0 78% 50%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 48 100% 50%;
+    --primary-foreground: 0 0% 10%;
 
-    --secondary: 0 0% 94%;
+    --secondary: 45 75% 90%;
     --secondary-foreground: 0 0% 10%;
 
-    --muted: 0 0% 95%;
-    --muted-foreground: 0 0% 40%;
+    --muted: 45 65% 92%;
+    --muted-foreground: 0 0% 30%;
 
-    /* Gold accent */
-    --accent: 45 95% 52%;
+    --accent: 45 98% 45%;
     --accent-foreground: 0 0% 8%;
 
     --destructive: 0 84% 55%;
@@ -37,42 +35,42 @@
     --success: 142 70% 42%;
     --success-foreground: 0 0% 100%;
 
-    --gold: 45 95% 52%;
+    --gold: 48 100% 50%;
     --gold-foreground: 0 0% 8%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 0 78% 50%;
+    --border: 45 50% 78%;
+    --input: 45 60% 82%;
+    --ring: 48 100% 50%;
 
     --radius: 0.85rem;
 
-    --gradient-hero: linear-gradient(135deg, hsl(0 0% 4%) 0%, hsl(0 75% 20%) 50%, hsl(45 95% 25%) 100%);
-    --gradient-gold: linear-gradient(135deg, hsl(45 95% 52%), hsl(38 100% 48%));
-    --gradient-red: linear-gradient(135deg, hsl(0 78% 50%), hsl(0 80% 38%));
-    --shadow-elegant: 0 20px 50px -20px hsl(0 0% 0% / 0.25);
-    --shadow-glow: 0 0 60px hsl(0 78% 50% / 0.35);
+    --gradient-hero: linear-gradient(130deg, hsl(0 0% 6%) 0%, hsl(0 0% 12%) 55%, hsl(45 100% 42%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(48 100% 55%), hsl(43 95% 48%));
+    --gradient-red: linear-gradient(140deg, hsl(0 0% 10%), hsl(0 0% 4%));
+    --shadow-elegant: 0 20px 45px -20px hsl(0 0% 0% / 0.28);
+    --shadow-glow: 0 0 55px hsl(48 100% 50% / 0.35);
   }
 
   .dark {
-    --background: 0 0% 5%;
-    --foreground: 0 0% 96%;
+    --background: 0 0% 4%;
+    --foreground: 48 70% 95%;
 
     --card: 0 0% 9%;
-    --card-foreground: 0 0% 96%;
+    --card-foreground: 48 70% 95%;
 
     --popover: 0 0% 9%;
-    --popover-foreground: 0 0% 96%;
+    --popover-foreground: 48 70% 95%;
 
-    --primary: 0 82% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 48 100% 54%;
+    --primary-foreground: 0 0% 8%;
 
-    --secondary: 0 0% 14%;
-    --secondary-foreground: 0 0% 96%;
+    --secondary: 0 0% 13%;
+    --secondary-foreground: 48 70% 95%;
 
-    --muted: 0 0% 13%;
-    --muted-foreground: 0 0% 65%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 45 20% 72%;
 
-    --accent: 45 95% 55%;
+    --accent: 48 100% 56%;
     --accent-foreground: 0 0% 6%;
 
     --destructive: 0 78% 50%;
@@ -81,15 +79,17 @@
     --success: 142 65% 48%;
     --success-foreground: 0 0% 100%;
 
-    --gold: 45 95% 55%;
+    --gold: 48 100% 56%;
     --gold-foreground: 0 0% 6%;
 
-    --border: 0 0% 16%;
-    --input: 0 0% 16%;
-    --ring: 0 82% 55%;
+    --border: 45 18% 22%;
+    --input: 45 18% 22%;
+    --ring: 48 100% 56%;
 
-    --gradient-hero: linear-gradient(135deg, hsl(0 0% 3%) 0%, hsl(0 75% 12%) 55%, hsl(45 80% 20%) 100%);
-    --shadow-glow: 0 0 80px hsl(0 82% 55% / 0.4);
+    --gradient-hero: linear-gradient(132deg, hsl(0 0% 2%) 0%, hsl(0 0% 8%) 55%, hsl(45 90% 20%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(48 100% 50%), hsl(43 95% 44%));
+    --gradient-red: linear-gradient(145deg, hsl(0 0% 14%), hsl(0 0% 7%));
+    --shadow-glow: 0 0 75px hsl(48 100% 55% / 0.4);
   }
 }
 
@@ -100,6 +100,10 @@
     @apply bg-background text-foreground;
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(circle at 10% 15%, hsl(48 100% 50% / 0.12), transparent 28%),
+      radial-gradient(circle at 85% 5%, hsl(48 100% 45% / 0.1), transparent 30%),
+      linear-gradient(180deg, hsl(var(--background)), hsl(var(--background)));
   }
   h1, h2, h3, h4 {
     font-family: 'Space Grotesk', sans-serif;
@@ -118,9 +122,10 @@
   .border-gold { border-color: hsl(var(--gold)); }
 
   .glass {
-    backdrop-filter: blur(14px);
-    background: hsl(var(--background) / 0.65);
-    border: 1px solid hsl(var(--border) / 0.5);
+    backdrop-filter: blur(18px);
+    background: linear-gradient(140deg, hsl(var(--card) / 0.62), hsl(var(--background) / 0.42));
+    border: 1px solid hsl(var(--gold) / 0.25);
+    box-shadow: 0 20px 45px -28px hsl(0 0% 0% / 0.6);
   }
 }
 

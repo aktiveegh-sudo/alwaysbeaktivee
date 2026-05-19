@@ -22,11 +22,11 @@ export function Header() {
     <header className="sticky top-0 z-50 glass border-b border-border/50">
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" onClick={close} className="flex items-center gap-2 font-display text-xl font-bold">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-red text-primary-foreground shadow-glow">
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-gold text-gold-foreground shadow-glow">
             <Zap className="h-5 w-5" />
           </span>
           <span>
-            Bossu<span className="text-gold">Data</span>
+            Aktivee<span className="text-gold">Data</span>
           </span>
         </Link>
 

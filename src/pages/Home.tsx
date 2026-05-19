@@ -28,8 +28,8 @@ export default function Home() {
     <>
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-hero text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,hsl(0_82%_50%/0.3),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_30%,hsl(45_95%_50%/0.2),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,hsl(48_100%_52%/0.28),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_30%,hsl(48_100%_45%/0.18),transparent_50%)]" />
         <div className="container relative py-20 md:py-32 grid lg:grid-cols-2 gap-12 items-center">
           <div className="animate-fade-up">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-1.5 text-xs font-medium backdrop-blur">
@@ -44,7 +44,7 @@ export default function Home() {
               and turn data into a daily income.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="xl" className="bg-gradient-red shadow-glow">
+              <Button asChild size="xl" className="bg-gradient-gold shadow-glow text-gold-foreground">
                 <Link to="/products">Buy Data Now <ArrowRight className="h-5 w-5" /></Link>
               </Button>
               <Button asChild size="xl" variant="gold">
@@ -111,7 +111,7 @@ export default function Home() {
 
       {/* Become agent CTA */}
       <section className="container py-12">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-red p-10 md:p-14 text-primary-foreground shadow-elegant">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-gold p-10 md:p-14 text-gold-foreground shadow-elegant">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_50%,rgba(255,255,255,0.15),transparent_50%)]" />
           <div className="relative grid md:grid-cols-2 gap-8 items-center">
             <div>
@@ -121,7 +121,7 @@ export default function Home() {
               <h2 className="mt-4 font-display text-4xl md:text-5xl font-bold">
                 Launch your own data store.
               </h2>
-              <p className="mt-3 text-primary-foreground/85 max-w-md">
+              <p className="mt-3 text-gold-foreground/85 max-w-md">
                 Get a mini-store, wallet, referral link, API access, flyer generator, and leaderboard rewards.
               </p>
             </div>

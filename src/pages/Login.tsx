@@ -44,7 +44,7 @@ export default function Login() {
       <Card>
         <CardContent className="p-8">
           <div className="flex items-center gap-2 mb-6">
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-gradient-red text-primary-foreground">
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-gradient-gold text-gold-foreground">
               <Zap className="h-5 w-5" />
             </span>
             <h1 className="font-display text-2xl font-bold">{forgot ? "Reset password" : "Welcome back"}</h1>
@@ -103,7 +103,7 @@ export default function Login() {
           </form>
 
           <div className="mt-6 pt-6 border-t text-center text-sm text-muted-foreground">
-            New to BossuData?{" "}
+            New to AktiveeData?{" "}
             <Link to="/become-agent" className="font-semibold text-primary hover:underline">
               Become an Agent
             </Link>

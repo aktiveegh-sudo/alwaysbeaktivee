@@ -63,7 +63,7 @@ export default function BecomeAgent() {
           <span className="inline-block rounded-full bg-gold text-gold-foreground px-3 py-1 text-xs font-bold">
             ONE-TIME {formatGHS(fee)} FEE
           </span>
-          <h1 className="mt-4 font-display text-4xl md:text-5xl font-bold">Become a BossuData Agent</h1>
+          <h1 className="mt-4 font-display text-4xl md:text-5xl font-bold">Become an AktiveeData Agent</h1>
           <p className="mt-3 text-white/75 max-w-xl">
             Launch your mini-store, sell data at agent prices, and keep the profit.
           </p>
@@ -83,7 +83,7 @@ export default function BecomeAgent() {
             ))}
           </div>
 
-          <div className="mt-6 rounded-xl bg-gradient-red p-6 text-primary-foreground">
+          <div className="mt-6 rounded-xl bg-gradient-gold p-6 text-gold-foreground">
             <div className="flex items-center gap-3">
               <Zap className="h-6 w-6" />
               <div>

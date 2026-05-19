@@ -143,12 +143,12 @@ ALTER TABLE public.withdrawal_requests ENABLE ROW LEVEL SECURITY;
 CREATE TABLE public.site_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   singleton boolean NOT NULL DEFAULT true UNIQUE,
-  site_name text NOT NULL DEFAULT 'BossuData',
+  site_name text NOT NULL DEFAULT 'AktiveeData',
   whatsapp_number text DEFAULT '+233000000000',
   agent_signup_fee numeric(10,2) NOT NULL DEFAULT 50.00,
   min_withdrawal numeric(10,2) NOT NULL DEFAULT 50.00,
   maintenance_mode boolean NOT NULL DEFAULT false,
-  maintenance_message text DEFAULT 'BossuData is under maintenance. We''ll be back shortly.',
+  maintenance_message text DEFAULT 'AktiveeData is under maintenance. We''ll be back shortly.',
   logo_url text,
   updated_at timestamptz NOT NULL DEFAULT now()
 );

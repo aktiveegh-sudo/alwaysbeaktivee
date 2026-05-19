@@ -10,7 +10,7 @@ export default function Placeholder({ title }: { title: string }) {
       </div>
       <h1 className="font-display text-4xl font-bold">{title}</h1>
       <p className="text-muted-foreground mt-3 max-w-md mx-auto">
-        This section is coming next. We're building BossuData feature by feature — ask to continue and this page will come alive.
+        This section is coming next. We're building AktiveeData feature by feature - ask to continue and this page will come alive.
       </p>
       <Button asChild className="mt-6"><Link to="/">Back to Home</Link></Button>
     </section>

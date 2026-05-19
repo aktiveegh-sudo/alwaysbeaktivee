@@ -2,11 +2,11 @@ import { Link } from "react-router-dom";
 
 export function Footer() {
   return (
-    <footer className="border-t border-border/50 bg-background mt-20">
+    <footer className="border-t border-border/50 glass mt-20">
       <div className="container py-12 grid gap-8 md:grid-cols-4">
         <div>
           <h3 className="font-display text-lg font-bold mb-2">
-            Bossu<span className="text-gold">Data</span>
+            Aktivee<span className="text-gold">Data</span>
           </h3>
           <p className="text-sm text-muted-foreground">Buy data instantly. Earn as an agent.</p>
         </div>
@@ -34,7 +34,7 @@ export function Footer() {
       </div>
       <div className="border-t border-border/50 py-5">
         <p className="container text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} BossuData. All rights reserved.
+          © {new Date().getFullYear()} AktiveeData. All rights reserved.
         </p>
       </div>
     </footer>
