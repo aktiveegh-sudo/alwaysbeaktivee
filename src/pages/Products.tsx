@@ -7,11 +7,12 @@ import { formatGHS, cn } from "@/lib/utils";
 import { CheckCircle2, Loader2, ShieldCheck, Smartphone, Wifi } from "lucide-react";
 
 type Network = "mtn" | "telecel" | "airteltigo" | "other";
+type ProductTab = "mtn" | "telecel" | "airteltigo" | "checker";
 type Product = {
   id: string;
   name: string;
   type: string;
-  network: Network;
+  network: string;
   public_price: number;
   agent_price: number;
   data_volume_mb: number | null;
@@ -19,12 +20,11 @@ type Product = {
   is_active: boolean;
 };
 
-const NETWORKS: { id: Network | "all"; label: string }[] = [
-  { id: "all", label: "All Networks" },
+const NETWORKS: { id: ProductTab; label: string }[] = [
   { id: "mtn", label: "MTN" },
   { id: "telecel", label: "Telecel" },
   { id: "airteltigo", label: "AirtelTigo" },
-  { id: "other", label: "Other" },
+  { id: "checker", label: "Checkers" },
 ];
 
 const networkBadge: Record<Network, string> = {
@@ -37,7 +37,7 @@ const networkBadge: Record<Network, string> = {
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Network | "all">("all");
+  const [filter, setFilter] = useState<ProductTab>("mtn");
   const [selected, setSelected] = useState<Product | null>(null);
 
   useEffect(() => {
@@ -52,10 +52,10 @@ export default function Products() {
       });
   }, []);
 
-  const filtered = useMemo(
-    () => (filter === "all" ? products : products.filter((p) => p.network === filter)),
-    [products, filter]
-  );
+  const filtered = useMemo(() => {
+    if (filter === "checker") return products.filter((p) => p.type === "checker");
+    return products.filter((p) => p.type === "data" && p.network === filter);
+  }, [products, filter]);
 
   return (
     <>
@@ -93,7 +93,7 @@ export default function Products() {
         ) : filtered.length === 0 ? (
           <Card>
             <CardContent className="py-16 text-center text-muted-foreground">
-              No products available yet. The admin will add bundles soon.
+              No products available in this category right now.
             </CardContent>
           </Card>
         ) : (
@@ -109,13 +109,13 @@ export default function Products() {
                     <span
                       className={cn(
                         "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold uppercase",
-                        networkBadge[p.network]
+                        p.type === "checker" ? "bg-accent/15 text-accent border-accent/30" : networkBadge[(p.network as Network) || "other"]
                       )}
                     >
-                      {p.network === "telecel" ? <Wifi className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}
-                      {p.network}
+                      {p.type === "checker" ? <ShieldCheck className="h-3 w-3" /> : p.network === "telecel" ? <Wifi className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}
+                      {p.type === "checker" ? "checker" : p.network}
                     </span>
-                    {p.data_volume_mb ? (
+                    {p.type === "data" && p.data_volume_mb ? (
                       <span className="text-xs text-muted-foreground">
                         {p.data_volume_mb >= 1024 ? `${(p.data_volume_mb / 1024).toFixed(1)}GB` : `${p.data_volume_mb}MB`}
                       </span>

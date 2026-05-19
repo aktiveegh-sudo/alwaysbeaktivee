@@ -11,9 +11,11 @@ import {
   Copy,
   Loader2,
   MessageCircle,
+  Package,
   ShieldCheck,
   Sparkles,
   Store as StoreIcon,
+  XCircle,
 } from "lucide-react";
 
 type Store = {
@@ -40,6 +42,15 @@ type Product = {
   description: string | null;
   selling_price?: number;
   agent_profit?: number;
+};
+
+type TrackOrderResult = {
+  reference: string;
+  status: "processing" | "delivered" | "failed" | "refunded";
+  recipient_phone: string;
+  amount: number;
+  created_at: string;
+  product_name: string | null;
 };
 
 type NetworkKey = "mtn" | "telecel" | "airteltigo" | "other";
@@ -74,6 +85,13 @@ const toNetworkKey = (network: string): NetworkKey => {
   return "other";
 };
 
+const trackStatusMeta: Record<TrackOrderResult["status"], { label: string; icon: typeof Clock3; cls: string }> = {
+  processing: { label: "Processing", icon: Clock3, cls: "bg-accent/15 text-accent" },
+  delivered: { label: "Delivered", icon: CheckCircle2, cls: "bg-success/15 text-success" },
+  failed: { label: "Failed", icon: XCircle, cls: "bg-destructive/15 text-destructive" },
+  refunded: { label: "Refunded", icon: Package, cls: "bg-muted text-muted-foreground" },
+};
+
 export default function StorePage() {
   const { slug } = useParams<{ slug: string }>();
   const [store, setStore] = useState<Store | null>(null);
@@ -82,6 +100,11 @@ export default function StorePage() {
   const [selected, setSelected] = useState<Product | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [activeNetwork, setActiveNetwork] = useState<NetworkKey>("mtn");
+  const [trackReference, setTrackReference] = useState("");
+  const [trackPhone, setTrackPhone] = useState("");
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [trackResult, setTrackResult] = useState<TrackOrderResult | null>(null);
+  const [trackNotFound, setTrackNotFound] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -175,6 +198,24 @@ export default function StorePage() {
   const visibleNetworks = (Object.keys(networkCounts) as NetworkKey[]).filter((key) => networkCounts[key] > 0);
   const filteredProducts = dataProducts.filter((prod) => toNetworkKey(prod.network) === activeNetwork);
 
+  const trackOrder = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!trackReference.trim() || !trackPhone.trim()) return;
+
+    setTrackLoading(true);
+    setTrackNotFound(false);
+    setTrackResult(null);
+    const { data } = await supabase.rpc("track_order", {
+      _reference: trackReference.trim().toUpperCase(),
+      _phone: trackPhone.trim(),
+    });
+    setTrackLoading(false);
+
+    const row = (data as TrackOrderResult[] | null)?.[0] || null;
+    if (row) setTrackResult(row);
+    else setTrackNotFound(true);
+  };
+
   return (
     <div style={themeStyle} className="relative overflow-hidden min-h-screen">
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_10%_15%,hsl(var(--primary)/0.2),transparent_35%),radial-gradient(circle_at_88%_5%,hsl(var(--gold)/0.22),transparent_30%)]" />
@@ -245,6 +286,79 @@ export default function StorePage() {
       </section>
 
       <section className="container py-12 relative">
+        <div className="mb-8 space-y-4">
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="font-display text-xl font-bold">Track your order</h2>
+              <p className="text-sm text-muted-foreground mt-1">Enter your reference and recipient phone to check status instantly.</p>
+
+              <form onSubmit={trackOrder} className="mt-4 grid sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase text-muted-foreground">Reference</label>
+                  <Input
+                    placeholder="GED-XXXXXXXX"
+                    value={trackReference}
+                    onChange={(e) => setTrackReference(e.target.value.toUpperCase())}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase text-muted-foreground">Phone number</label>
+                  <Input
+                    inputMode="numeric"
+                    placeholder="0241234567"
+                    value={trackPhone}
+                    onChange={(e) => setTrackPhone(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" disabled={trackLoading} className="sm:col-span-2">
+                  {trackLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Track Order"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {trackNotFound && (
+            <Card className="border-destructive/40">
+              <CardContent className="p-5 text-center">
+                <XCircle className="h-7 w-7 text-destructive mx-auto mb-2" />
+                <p className="font-semibold">Order not found</p>
+                <p className="text-sm text-muted-foreground mt-1">Check the reference and recipient phone number, then try again.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {trackResult && (
+            <Card className="animate-fade-up">
+              <CardContent className="p-6 space-y-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase">Reference</div>
+                    <div className="font-mono font-bold text-lg">{trackResult.reference}</div>
+                  </div>
+                  {(() => {
+                    const meta = trackStatusMeta[trackResult.status];
+                    const Icon = meta.icon;
+                    return (
+                      <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold", meta.cls)}>
+                        <Icon className="h-3.5 w-3.5" /> {meta.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border/70">
+                  <TrackInfoField label="Product" value={trackResult.product_name || "-"} />
+                  <TrackInfoField label="Recipient" value={trackResult.recipient_phone} />
+                  <TrackInfoField label="Amount" value={formatGHS(trackResult.amount)} />
+                  <TrackInfoField label="Placed" value={new Date(trackResult.created_at).toLocaleString()} />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
         <div className="flex items-center justify-between gap-4 mb-6">
           <h2 className="font-display text-2xl md:text-3xl font-bold">Available Products</h2>
           <span className="text-xs rounded-full bg-secondary px-3 py-1.5 font-semibold">{products.length} products</span>
@@ -408,6 +522,15 @@ function toWhatsAppDigits(number: string) {
   const digits = number.replace(/\D/g, "");
   if (digits.startsWith("0") && digits.length === 10) return `233${digits.slice(1)}`;
   return digits;
+}
+
+function TrackInfoField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground uppercase">{label}</div>
+      <div className="font-semibold mt-0.5">{value}</div>
+    </div>
+  );
 }
 
 function BuyDialog({ product, store, onClose }: { product: Product; store: Store; onClose: () => void }) {
