@@ -301,11 +301,20 @@ export default function StorePage() {
                     const meta = NETWORK_META[key];
                     const subtleText = key === "mtn" ? "text-black/80" : "text-white/90";
                     const buyButtonClass = key === "mtn" ? "bg-black text-white hover:bg-black/90" : "bg-white text-black hover:bg-white/90";
+                    const cardStyle =
+                      key === "mtn"
+                        ? { background: "#facc15", color: "#000000", borderColor: "#eab308" }
+                        : key === "telecel"
+                          ? { background: "#dc2626", color: "#ffffff", borderColor: "#b91c1c" }
+                          : key === "airteltigo"
+                            ? { background: "#2563eb", color: "#ffffff", borderColor: "#1d4ed8" }
+                            : undefined;
                     return (
                     <Card
                       key={p.id}
                       onClick={() => setSelected(p)}
                       className={`cursor-pointer transition hover:-translate-y-1.5 hover:shadow-glow ${meta.card}`}
+                      style={cardStyle}
                     >
                       <CardContent className="p-5">
                         <div className="flex items-center justify-between mb-3">
