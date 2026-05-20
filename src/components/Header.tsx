@@ -1,7 +1,8 @@
 import { Link, NavLink } from "react-router-dom";
 import { Button } from "./ui/button";
 import { ThemeToggle } from "./ThemeToggle";
-import { Zap } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { LayoutDashboard, Zap } from "lucide-react";
 
 const nav = [
   { to: "/", label: "Home" },
@@ -11,6 +12,7 @@ const nav = [
 ];
 
 export function Header() {
+  const { user } = useAuth();
   return (
     <header className="sticky top-0 z-50 glass border-b border-border/50">
       <div className="container flex h-16 items-center justify-between">
@@ -42,12 +44,22 @@ export function Header() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
-            <Link to="/login">Login</Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link to="/become-agent">Get Started</Link>
-          </Button>
+          {user ? (
+            <Button asChild size="sm">
+              <Link to="/dashboard">
+                <LayoutDashboard className="h-4 w-4" /> Dashboard
+              </Link>
+            </Button>
+          ) : (
+            <>
+              <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+                <Link to="/login">Login</Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link to="/become-agent">Get Started</Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </header>
