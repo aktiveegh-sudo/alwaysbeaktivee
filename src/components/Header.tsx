@@ -44,12 +44,22 @@ export function Header() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
-            <Link to="/login">Login</Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link to="/become-agent">Get Started</Link>
-          </Button>
+          {user ? (
+            <Button asChild size="sm">
+              <Link to="/dashboard">
+                <LayoutDashboard className="h-4 w-4" /> Dashboard
+              </Link>
+            </Button>
+          ) : (
+            <>
+              <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+                <Link to="/login">Login</Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link to="/become-agent">Get Started</Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </header>
