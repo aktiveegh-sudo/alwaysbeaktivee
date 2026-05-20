@@ -5,6 +5,8 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import Home from "@/pages/Home";
+import Products from "@/pages/Products";
+import Track from "@/pages/Track";
 import Placeholder from "@/pages/Placeholder";
 
 const qc = new QueryClient();
@@ -18,8 +20,8 @@ const App = () => (
           <main className="flex-1">
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/products" element={<Placeholder title="Product Catalogue" />} />
-              <Route path="/track" element={<Placeholder title="Order Tracker" />} />
+              <Route path="/products" element={<Products />} />
+              <Route path="/track" element={<Track />} />
               <Route path="/become-agent" element={<Placeholder title="Become an Agent" />} />
               <Route path="/login" element={<Placeholder title="Login" />} />
               <Route path="/dashboard" element={<Placeholder title="Agent Dashboard" />} />
