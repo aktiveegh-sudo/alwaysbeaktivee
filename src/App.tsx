@@ -13,6 +13,8 @@ import Login from "@/pages/Login";
 import ResetPassword from "@/pages/ResetPassword";
 import BecomeAgent from "@/pages/BecomeAgent";
 import Dashboard from "@/pages/Dashboard";
+import Admin from "@/pages/Admin";
+import StorePage from "@/pages/Store";
 import Placeholder from "@/pages/Placeholder";
 
 const qc = new QueryClient();
@@ -44,11 +46,11 @@ const App = () => (
                   path="/admin"
                   element={
                     <RequireAuth adminOnly>
-                      <Placeholder title="Admin Dashboard" />
+                      <Admin />
                     </RequireAuth>
                   }
                 />
-                <Route path="/store/:slug" element={<Placeholder title="Agent Store" />} />
+                <Route path="/store/:slug" element={<StorePage />} />
                 <Route path="*" element={<Placeholder title="404 — Not Found" />} />
               </Routes>
             </main>
