@@ -458,6 +458,33 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_credit_wallet: {
+        Args: { _amount: number; _description?: string; _user_id: string }
+        Returns: undefined
+      }
+      admin_list_users: {
+        Args: { _search?: string }
+        Returns: {
+          balance: number
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          is_suspended: boolean
+          phone: string
+          roles: Database["public"]["Enums"]["app_role"][]
+        }[]
+      }
+      admin_overview: { Args: never; Returns: Json }
+      admin_set_role: {
+        Args: {
+          _enabled: boolean
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: undefined
+      }
+      claim_first_admin: { Args: never; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
