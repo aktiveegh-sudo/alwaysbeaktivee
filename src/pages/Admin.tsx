@@ -1,25 +1,33 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatGHS, cn } from "@/lib/utils";
-import { Loader2, Package, ShoppingCart, Wallet, Settings as SettingsIcon, Plus, Trash2 } from "lucide-react";
+import {
+  Loader2, Package, ShoppingCart, Wallet, Settings as SettingsIcon,
+  Plus, Trash2, LayoutDashboard, Users, TrendingUp, Clock,
+  CheckCircle2, ShieldCheck, ShieldOff, CircleDollarSign,
+} from "lucide-react";
 
-type Tab = "products" | "orders" | "withdrawals" | "settings";
+type Tab = "overview" | "products" | "orders" | "withdrawals" | "users" | "settings";
 type Network = "mtn" | "telecel" | "airteltigo" | "bece" | "wassce";
 type OrderStatus = "processing" | "delivered" | "failed" | "refunded";
 type WithdrawalStatus = "pending" | "approved" | "rejected" | "paid";
+type Role = "admin" | "agent" | "subagent" | "customer";
 
 const TABS: { id: Tab; label: string; icon: any }[] = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "products", label: "Products", icon: Package },
   { id: "orders", label: "Orders", icon: ShoppingCart },
   { id: "withdrawals", label: "Withdrawals", icon: Wallet },
+  { id: "users", label: "Users", icon: Users },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
 export default function Admin() {
-  const [tab, setTab] = useState<Tab>("products");
+  const [tab, setTab] = useState<Tab>("overview");
   return (
     <section className="container py-10">
       <header className="mb-8">
@@ -27,7 +35,7 @@ export default function Admin() {
         <p className="text-muted-foreground mt-1">Manage BossuData operations.</p>
       </header>
 
-      <div className="flex flex-wrap gap-2 mb-8 border-b border-border">
+      <div className="flex flex-wrap gap-2 mb-8 border-b border-border overflow-x-auto">
         {TABS.map((t) => {
           const Icon = t.icon;
           return (
@@ -35,7 +43,7 @@ export default function Admin() {
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                "inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition",
+                "inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition whitespace-nowrap",
                 tab === t.id
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -48,11 +56,238 @@ export default function Admin() {
         })}
       </div>
 
+      {tab === "overview" && <OverviewTab />}
       {tab === "products" && <ProductsTab />}
       {tab === "orders" && <OrdersTab />}
       {tab === "withdrawals" && <WithdrawalsTab />}
+      {tab === "users" && <UsersTab />}
       {tab === "settings" && <SettingsTab />}
     </section>
+  );
+}
+
+/* ---------------- Overview ---------------- */
+
+function OverviewTab() {
+  const [stats, setStats] = useState<any | null>(null);
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    const [{ data: s }, { data: o }] = await Promise.all([
+      supabase.rpc("admin_overview" as any),
+      supabase.from("orders").select("reference, amount, status, recipient_phone, created_at").order("created_at", { ascending: false }).limit(8),
+    ]);
+    setStats(s);
+    setRecentOrders(o || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  if (loading || !stats) return <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-10" />;
+
+  const kpis = [
+    { label: "Revenue (delivered)", value: formatGHS(stats.revenue_total), accent: "text-success", icon: TrendingUp, sub: `Today ${formatGHS(stats.revenue_today)}` },
+    { label: "Orders", value: stats.total_orders, accent: "text-foreground", icon: ShoppingCart, sub: `Today ${stats.orders_today}` },
+    { label: "Processing", value: stats.processing_orders, accent: "text-gold", icon: Clock, sub: `${stats.failed_orders} failed` },
+    { label: "Users", value: stats.total_users, accent: "text-foreground", icon: Users, sub: `${stats.total_agents} agents` },
+    { label: "Pending withdrawals", value: stats.pending_withdrawals, accent: "text-primary", icon: Wallet, sub: formatGHS(stats.pending_withdrawal_amount) },
+    { label: "Wallet float", value: formatGHS(stats.total_wallet_balance), accent: "text-gold", icon: CircleDollarSign, sub: `${stats.active_products} active products` },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {kpis.map((k) => {
+          const Icon = k.icon;
+          return (
+            <Card key={k.label} className="overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">{k.label}</p>
+                    <p className={cn("mt-2 text-3xl font-display font-bold", k.accent)}>{k.value}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{k.sub}</p>
+                  </div>
+                  <Icon className={cn("h-8 w-8 opacity-30", k.accent)} />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Card>
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-display font-bold">Latest orders</h3>
+            <Button size="sm" variant="ghost" onClick={load}>Refresh</Button>
+          </div>
+          <div className="divide-y divide-border/60">
+            {recentOrders.length === 0 && <p className="text-sm text-muted-foreground py-4">No orders yet.</p>}
+            {recentOrders.map((o) => (
+              <div key={o.reference} className="py-2.5 flex items-center justify-between text-sm">
+                <div>
+                  <span className="font-mono font-bold">{o.reference}</span>
+                  <span className="text-muted-foreground ml-2">{o.recipient_phone}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold">{formatGHS(o.amount)}</span>
+                  <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold uppercase",
+                    o.status === "delivered" ? "bg-success/15 text-success" :
+                    o.status === "processing" ? "bg-gold/15 text-gold" :
+                    o.status === "failed" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground")}>
+                    {o.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------- Users ---------------- */
+
+const ROLES: Role[] = ["admin", "agent", "subagent", "customer"];
+
+function UsersTab() {
+  const { user: me } = useAuth();
+  const [users, setUsers] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [adminExists, setAdminExists] = useState(true);
+
+  const load = async (q = "") => {
+    setLoading(true);
+    const { data, error } = await supabase.rpc("admin_list_users" as any, { _search: q });
+    if (!error) setUsers((data as any[]) || []);
+    setLoading(false);
+  };
+
+  const checkBootstrap = async () => {
+    const { count } = await supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "admin");
+    setAdminExists((count ?? 0) > 0);
+  };
+
+  useEffect(() => { load(); checkBootstrap(); }, []);
+
+  const claimAdmin = async () => {
+    const { error } = await supabase.rpc("claim_first_admin" as any);
+    if (error) return alert(error.message);
+    alert("You are now admin. Reload the page.");
+    window.location.reload();
+  };
+
+  const toggleRole = async (uid: string, role: Role, enabled: boolean) => {
+    setBusyId(uid + role);
+    const { error } = await supabase.rpc("admin_set_role" as any, { _user_id: uid, _role: role, _enabled: enabled });
+    setBusyId(null);
+    if (error) return alert(error.message);
+    load(search);
+  };
+
+  const credit = async (uid: string) => {
+    const raw = prompt("Amount to credit (negative to debit) in GHS:");
+    if (!raw) return;
+    const amount = Number(raw);
+    if (!isFinite(amount) || amount === 0) return;
+    const desc = prompt("Description?", "Admin adjustment") || "Admin adjustment";
+    const { error } = await supabase.rpc("admin_credit_wallet" as any, { _user_id: uid, _amount: amount, _description: desc });
+    if (error) return alert(error.message);
+    load(search);
+  };
+
+  return (
+    <div className="space-y-4">
+      {!adminExists && (
+        <Card className="border-gold/40 bg-gold/5">
+          <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-bold">No admin exists yet</p>
+              <p className="text-sm text-muted-foreground">Promote yourself to admin to start managing the platform.</p>
+            </div>
+            <Button onClick={claimAdmin}><ShieldCheck className="h-4 w-4" /> Claim admin</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <form onSubmit={(e) => { e.preventDefault(); load(search); }} className="flex gap-2">
+        <Input placeholder="Search by name, email or phone" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Button type="submit" variant="outline">Search</Button>
+      </form>
+
+      {loading ? (
+        <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-10" />
+      ) : (
+        <div className="grid gap-3">
+          {users.length === 0 && <p className="text-muted-foreground text-center py-10">No users found.</p>}
+          {users.map((u) => (
+            <Card key={u.id}>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="font-semibold flex items-center gap-2">
+                      {u.full_name || "Unnamed"}
+                      {u.id === me?.id && <span className="text-xs rounded-full px-2 py-0.5 bg-primary/15 text-primary">you</span>}
+                      {u.is_suspended && <span className="text-xs rounded-full px-2 py-0.5 bg-destructive/15 text-destructive">suspended</span>}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{u.email} · {u.phone || "no phone"}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-muted-foreground">Wallet</div>
+                    <div className="font-bold text-gold">{formatGHS(u.balance || 0)}</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {ROLES.map((r) => {
+                    const has = (u.roles || []).includes(r);
+                    const k = u.id + r;
+                    return (
+                      <button
+                        key={r}
+                        disabled={busyId === k}
+                        onClick={() => toggleRole(u.id, r, !has)}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold border transition",
+                          has
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                        )}
+                      >
+                        {busyId === k ? <Loader2 className="h-3 w-3 animate-spin" /> : has ? <CheckCircle2 className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                        {r}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button size="sm" variant="outline" onClick={() => credit(u.id)}>
+                    <CircleDollarSign className="h-4 w-4" /> Credit wallet
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      await supabase.from("profiles").update({ is_suspended: !u.is_suspended }).eq("id", u.id);
+                      load(search);
+                    }}
+                  >
+                    {u.is_suspended ? <><ShieldCheck className="h-4 w-4" /> Reactivate</> : <><ShieldOff className="h-4 w-4" /> Suspend</>}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
