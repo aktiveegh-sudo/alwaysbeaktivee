@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatGHS } from "@/lib/utils";
+import { cn, formatGHS } from "@/lib/utils";
 import {
   CheckCircle2,
   Clock3,
