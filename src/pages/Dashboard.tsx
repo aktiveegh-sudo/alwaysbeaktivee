@@ -437,25 +437,37 @@ export default function Dashboard() {
   const filteredBuyDataProducts = dataBuyProducts.filter((item) => toNetworkKey(item.network) === buyNetwork);
 
   return (
-    <div className="container py-10 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-bold">Hello, {profile?.full_name || "Agent"} 👋</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {isAgent ? "Manage your wallet, store and orders." : "Activate your agent account to start earning."}
-          </p>
-        </div>
-        <Button variant="outline" onClick={signOut}>Sign out</Button>
-      </div>
+    <div className="container py-10">
+      <div className="grid gap-6 lg:grid-cols-[260px_1fr] items-start">
+        <aside className="lg:sticky lg:top-24 space-y-4">
+          <Card>
+            <CardContent className="p-4 space-y-1">
+              <h1 className="font-display text-2xl font-bold">Hello, {profile?.full_name || "Agent"} 👋</h1>
+              <p className="text-muted-foreground text-sm">
+                {isAgent ? "Manage your wallet, store and orders." : "Activate your agent account to start earning."}
+              </p>
+            </CardContent>
+          </Card>
 
-      <div className="flex flex-wrap gap-2">
-        <TabButton label="Overview" active={tab === "overview"} onClick={() => setTab("overview")} />
-        <TabButton label="Buy Packages" active={tab === "buy"} onClick={() => setTab("buy")} icon={<ShoppingCart className="h-4 w-4" />} />
-        <TabButton label="Store Packages" active={tab === "packages"} onClick={() => setTab("packages")} icon={<Package className="h-4 w-4" />} />
-        <TabButton label="Store Orders" active={tab === "orders"} onClick={() => setTab("orders")} icon={<PackageSearch className="h-4 w-4" />} />
-        <TabButton label="Withdrawal" active={tab === "withdrawal"} onClick={() => setTab("withdrawal")} icon={<WalletIcon className="h-4 w-4" />} />
-        <TabButton label="Store Settings" active={tab === "settings"} onClick={() => setTab("settings")} icon={<Settings className="h-4 w-4" />} />
-      </div>
+          <Card>
+            <CardContent className="p-3">
+              <p className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dashboard</p>
+              <div className="space-y-1.5">
+                <TabButton label="Overview" active={tab === "overview"} onClick={() => setTab("overview")} className="w-full justify-start" />
+                <TabButton label="Buy Packages" active={tab === "buy"} onClick={() => setTab("buy")} icon={<ShoppingCart className="h-4 w-4" />} className="w-full justify-start" />
+                <TabButton label="Store Packages" active={tab === "packages"} onClick={() => setTab("packages")} icon={<Package className="h-4 w-4" />} className="w-full justify-start" />
+                <TabButton label="Store Orders" active={tab === "orders"} onClick={() => setTab("orders")} icon={<PackageSearch className="h-4 w-4" />} className="w-full justify-start" />
+                <TabButton label="Withdrawal" active={tab === "withdrawal"} onClick={() => setTab("withdrawal")} icon={<WalletIcon className="h-4 w-4" />} className="w-full justify-start" />
+                <TabButton label="Store Settings" active={tab === "settings"} onClick={() => setTab("settings")} icon={<Settings className="h-4 w-4" />} className="w-full justify-start" />
+              </div>
+              <div className="pt-3 mt-3 border-t border-border/70">
+                <Button variant="outline" onClick={signOut} className="w-full">Sign out</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
+
+        <main className="min-w-0 space-y-6">
 
       {tab === "overview" && (
         <>
@@ -810,6 +822,9 @@ export default function Dashboard() {
         </Card>
       )}
 
+        </main>
+      </div>
+
       {selectedBuyProduct && user && (
         <AgentBuyDialog
           product={selectedBuyProduct}
@@ -826,19 +841,22 @@ function TabButton({
   active,
   onClick,
   icon,
+  className,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
   icon?: React.ReactNode;
+  className?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition",
-        active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-secondary"
+        "inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition",
+        active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-secondary",
+        className
       )}
     >
       {icon}

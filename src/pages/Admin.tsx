@@ -31,38 +31,49 @@ export default function Admin() {
   const [tab, setTab] = useState<Tab>("overview");
   return (
     <section className="container py-10">
-      <header className="mb-8">
+      <header className="mb-6">
         <h1 className="font-display text-4xl font-bold">Admin Console</h1>
         <p className="text-muted-foreground mt-1">Manage AktiveeData operations.</p>
       </header>
 
-      <div className="flex flex-wrap gap-2 mb-8 border-b border-border overflow-x-auto">
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition whitespace-nowrap",
-                tab === t.id
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
+      <div className="grid gap-6 lg:grid-cols-[250px_1fr] items-start">
+        <aside className="lg:sticky lg:top-24">
+          <Card>
+            <CardContent className="p-3">
+              <p className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Navigation</p>
+              <nav className="space-y-1.5">
+                {TABS.map((t) => {
+                  const Icon = t.icon;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setTab(t.id)}
+                      className={cn(
+                        "w-full inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition",
+                        tab === t.id
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            </CardContent>
+          </Card>
+        </aside>
 
-      {tab === "overview" && <OverviewTab />}
-      {tab === "products" && <ProductsTab />}
-      {tab === "orders" && <OrdersTab />}
-      {tab === "withdrawals" && <WithdrawalsTab />}
-      {tab === "users" && <UsersTab />}
-      {tab === "settings" && <SettingsTab />}
+        <main className="min-w-0 space-y-6">
+          {tab === "overview" && <OverviewTab />}
+          {tab === "products" && <ProductsTab />}
+          {tab === "orders" && <OrdersTab />}
+          {tab === "withdrawals" && <WithdrawalsTab />}
+          {tab === "users" && <UsersTab />}
+          {tab === "settings" && <SettingsTab />}
+        </main>
+      </div>
     </section>
   );
 }
