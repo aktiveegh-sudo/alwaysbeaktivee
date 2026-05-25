@@ -79,9 +79,9 @@ Deno.serve(async (req) => {
   });
 });
 
-function json(body: unknown, status = 200) {
+function json(body: unknown) {
   return new Response(JSON.stringify(body), {
-    status,
+    status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
