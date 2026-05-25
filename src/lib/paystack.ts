@@ -8,7 +8,8 @@ export type PaystackInitResult = {
 
 export async function initiatePaystackCheckout(orderId: string, returnUrl: string): Promise<PaystackInitResult> {
   const { data, error } = await supabase.functions.invoke("paystack-initiate", {
-    body: { order_id: orderId, return_url: returnUrl },
+    body: JSON.stringify({ order_id: orderId, return_url: returnUrl }),
+    headers: { "Content-Type": "application/json" },
   });
 
   if (error) {
@@ -28,7 +29,8 @@ export async function initiatePaystackCheckout(orderId: string, returnUrl: strin
 
 export async function verifyPaystackOrder(orderReference: string) {
   const { data, error } = await supabase.functions.invoke("paystack-verify", {
-    body: { order_reference: orderReference },
+    body: JSON.stringify({ order_reference: orderReference }),
+    headers: { "Content-Type": "application/json" },
   });
 
   if (error) {

@@ -23,13 +23,7 @@ Deno.serve(async (req) => {
     return json({ success: false, error: "Method not allowed." }, 405);
   }
 
-  let body: any;
-  try {
-    body = await req.json();
-  } catch {
-    return json({ success: false, error: "Invalid JSON body." }, 400);
-  }
-
+  const body = await parseJsonBody(req);
   const orderId = String(body?.order_id ?? "");
   const returnUrl = String(body?.return_url ?? "");
   if (!orderId || !returnUrl) {
@@ -81,6 +75,20 @@ Deno.serve(async (req) => {
     order_reference: order.reference,
   });
 });
+
+async function parseJsonBody(req: Request) {
+  try {
+    return await req.json();
+  } catch {
+    try {
+      const text = await req.text();
+      if (!text) return null;
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }
+}
 
 function json(body: unknown) {
   return new Response(JSON.stringify(body), {

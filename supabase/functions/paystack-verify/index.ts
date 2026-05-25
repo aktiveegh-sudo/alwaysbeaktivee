@@ -22,14 +22,11 @@ Deno.serve(async (req) => {
     return json({ success: false, error: "Method not allowed." }, 405);
   }
 
-  let body: any;
-  try {
-    body = await req.json();
-  } catch {
-    return json({ success: false, error: "Invalid JSON body." }, 400);
-  }
-
-  const orderReference = String(body?.order_reference ?? "");
+  const body = await parseJsonBody(req);
+  const query = new URL(req.url).searchParams;
+  const orderReference = String(
+    body?.order_reference ?? body?.reference ?? body?.trxref ?? query.get("order_reference") ?? query.get("reference") ?? query.get("trxref") ?? ""
+  );
   if (!orderReference) {
     return json({ success: false, error: "order_reference is required." }, 400);
   }
@@ -78,6 +75,20 @@ Deno.serve(async (req) => {
     purchase: purchaseResult,
   });
 });
+
+async function parseJsonBody(req: Request) {
+  try {
+    return await req.json();
+  } catch {
+    try {
+      const text = await req.text();
+      if (!text) return null;
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }
+}
 
 function json(body: unknown) {
   return new Response(JSON.stringify(body), {

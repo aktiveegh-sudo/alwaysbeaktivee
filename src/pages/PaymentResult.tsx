@@ -12,7 +12,10 @@ export default function PaymentResult() {
   const [orderReference, setOrderReference] = useState<string | null>(null);
 
   useEffect(() => {
-    const value = searchParams.get("order_reference") || searchParams.get("reference");
+    const value =
+      searchParams.get("order_reference") ||
+      searchParams.get("reference") ||
+      searchParams.get("trxref");
     if (!value) {
       setStatus("error");
       setMessage("Missing order reference. Unable to verify payment.");
