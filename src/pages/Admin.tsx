@@ -309,6 +309,7 @@ function ProductsTab() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
   const networkOrder: Record<Network, number> = {
     mtn: 0,
@@ -365,7 +366,19 @@ function ProductsTab() {
         </Button>
       </div>
 
-      {showForm && <ProductForm onClose={() => setShowForm(false)} onSaved={load} />}
+      {showForm && (
+        <ProductForm
+          product={editingProduct}
+          onClose={() => {
+            setShowForm(false);
+            setEditingProduct(null);
+          }}
+          onSaved={() => {
+            load();
+            setEditingProduct(null);
+          }}
+        />
+      )}
 
       {loading ? (
         <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-10" />
@@ -397,6 +410,9 @@ function ProductsTab() {
                 <Button variant="outline" size="sm" onClick={() => toggle(p.id, p.is_active)}>
                   {p.is_active ? "Disable" : "Enable"}
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => { setEditingProduct(p); setShowForm(true); }}>
+                  Edit
+                </Button>
                 <Button variant="ghost" size="icon" onClick={() => remove(p.id)}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
@@ -409,15 +425,15 @@ function ProductsTab() {
   );
 }
 
-function ProductForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({
-    type: "data" as ProductType,
-    network: "mtn" as Network,
-    volume_gb: "",
-    checker_name: "",
-    public_price: "",
-    agent_price: "",
-  });
+function ProductForm({ product, onClose, onSaved }: { product?: any | null; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState(() => ({
+    type: (product?.type as ProductType) ?? "data",
+    network: (product?.network as Network) ?? "mtn",
+    volume_gb: product?.data_volume_mb ? String(Number(product.data_volume_mb) / 1024) : "",
+    checker_name: product?.type === "checker" ? (product.name ?? "") : "",
+    public_price: product ? String(product.public_price ?? "") : "",
+    agent_price: product ? String(product.agent_price ?? "") : "",
+  }));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -472,7 +488,14 @@ function ProductForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
 
     setSaving(true);
     setErr(null);
-    const { error } = await supabase.from("products").insert(payload);
+    let error = null;
+    if (product && product.id) {
+      const res = await supabase.from("products").update(payload).eq("id", product.id);
+      error = res.error;
+    } else {
+      const res = await supabase.from("products").insert(payload);
+      error = res.error;
+    }
     setSaving(false);
     if (error) return setErr(error.message);
     onSaved();
@@ -513,7 +536,7 @@ function ProductForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
           {err && <div className="sm:col-span-2 text-destructive text-sm">{err}</div>}
           <div className="sm:col-span-2 flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}</Button>
+            <Button type="submit" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : product ? "Save" : "Create"}</Button>
           </div>
         </form>
       </CardContent>
