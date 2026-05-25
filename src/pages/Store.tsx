@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatGHS } from "@/lib/utils";
+import { initiatePaystackCheckout } from "@/lib/paystack";
 import {
   CheckCircle2,
   Clock3,
@@ -568,14 +569,18 @@ function BuyDialog({ product, store, onClose }: { product: Product; store: Store
       setSubmitting(false);
       return setError(err.message);
     }
-    const { data: fn, error: fnErr } = await supabase.functions.invoke("purchase-data", {
-      body: { order_id: data.id },
-    });
-    setSubmitting(false);
-    if (fnErr || (fn && fn.success === false)) {
-      return setError((fn && fn.error) || fnErr?.message || "Provider could not process this order.");
+
+    try {
+      const callbackUrl = `${window.location.origin}/payment-result?order_reference=${encodeURIComponent(
+        data.reference
+      )}`;
+      const init = await initiatePaystackCheckout(data.id, callbackUrl);
+      window.location.href = init.authorizationUrl;
+      return;
+    } catch (initError) {
+      setSubmitting(false);
+      return setError(initError instanceof Error ? initError.message : String(initError));
     }
-    setDone({ reference: data.reference });
   };
 
   return (

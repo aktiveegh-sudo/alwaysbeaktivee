@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatGHS, cn } from "@/lib/utils";
+import { initiatePaystackCheckout } from "@/lib/paystack";
 import { CheckCircle2, Loader2, ShieldCheck, Smartphone, Wifi } from "lucide-react";
 
 type Network = "mtn" | "telecel" | "airteltigo" | "other";
@@ -174,15 +175,19 @@ function BuyDialog({ product, onClose }: { product: Product; onClose: () => void
       setError(err.message);
       return;
     }
-    const { data: fn, error: fnErr } = await supabase.functions.invoke("purchase-data", {
-      body: { order_id: data.id },
-    });
-    setSubmitting(false);
-    if (fnErr || (fn && fn.success === false)) {
-      setError((fn && fn.error) || fnErr?.message || "Provider could not process this order. We'll refund any charge.");
+
+    try {
+      const callbackUrl = `${window.location.origin}/payment-result?order_reference=${encodeURIComponent(
+        data.reference
+      )}`;
+      const init = await initiatePaystackCheckout(data.id, callbackUrl);
+      window.location.href = init.authorizationUrl;
+      return;
+    } catch (initError) {
+      setSubmitting(false);
+      setError(initError instanceof Error ? initError.message : String(initError));
       return;
     }
-    setDone({ reference: data.reference });
   };
 
   return (

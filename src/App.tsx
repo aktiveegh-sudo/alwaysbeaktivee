@@ -15,6 +15,7 @@ import BecomeAgent from "@/pages/BecomeAgent";
 import Dashboard from "@/pages/Dashboard";
 import Admin from "@/pages/Admin";
 import StorePage from "@/pages/Store";
+import PaymentResult from "@/pages/PaymentResult";
 import Placeholder from "@/pages/Placeholder";
 
 const qc = new QueryClient();
@@ -42,6 +43,7 @@ function AppRoutes() {
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />
           <Route path="/track" element={<Track />} />
+          <Route path="/payment-result" element={<PaymentResult />} />
           <Route path="/become-agent" element={<BecomeAgent />} />
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
