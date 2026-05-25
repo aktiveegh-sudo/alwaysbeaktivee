@@ -1,4 +1,10 @@
 project_id = "msrmlnyzkkupdhanxgyp"
 
+[functions.paystack-initiate]
+verify_jwt = false
+
+[functions.paystack-verify]
+verify_jwt = false
+
 [functions.purchase-data]
 verify_jwt = false
