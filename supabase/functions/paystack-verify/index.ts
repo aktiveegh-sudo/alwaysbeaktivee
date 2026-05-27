@@ -83,6 +83,14 @@ Deno.serve(async (req) => {
       return json({ success: false, error: purchaseError.message || "Failed to process order after payment." });
     }
 
+    if (!purchaseResult?.success) {
+      return json({
+        success: false,
+        error: purchaseResult?.error || "Order was verified but fulfillment failed.",
+        details: purchaseResult,
+      });
+    }
+
     return json({
       success: true,
       message: "Payment verified and order processing started.",
