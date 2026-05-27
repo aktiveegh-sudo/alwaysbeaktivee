@@ -927,12 +927,20 @@ function AgentBuyDialog({
         buyer_user_id: userId,
         store_owner_id: userId,
       })
-      .select("reference")
+      .select("id, reference")
       .single();
-    setSubmitting(false);
 
     if (insertError) {
+      setSubmitting(false);
       setError(insertError.message);
+      return;
+    }
+    const { data: fn, error: fnErr } = await supabase.functions.invoke("purchase-data", {
+      body: { order_id: data.id },
+    });
+    setSubmitting(false);
+    if (fnErr || (fn && fn.success === false)) {
+      setError((fn && fn.error) || fnErr?.message || "Provider could not process this order.");
       return;
     }
     setDone({ reference: data.reference });

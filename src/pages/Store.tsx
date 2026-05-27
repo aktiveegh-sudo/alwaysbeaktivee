@@ -562,10 +562,19 @@ function BuyDialog({ product, store, onClose }: { product: Product; store: Store
         agent_profit: agentProfit,
         store_owner_id: store.user_id,
       })
-      .select("reference")
+      .select("id, reference")
       .single();
+    if (err) {
+      setSubmitting(false);
+      return setError(err.message);
+    }
+    const { data: fn, error: fnErr } = await supabase.functions.invoke("purchase-data", {
+      body: { order_id: data.id },
+    });
     setSubmitting(false);
-    if (err) return setError(err.message);
+    if (fnErr || (fn && fn.success === false)) {
+      return setError((fn && fn.error) || fnErr?.message || "Provider could not process this order.");
+    }
     setDone({ reference: data.reference });
   };
 

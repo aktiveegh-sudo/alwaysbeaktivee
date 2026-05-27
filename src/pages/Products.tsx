@@ -167,11 +167,19 @@ function BuyDialog({ product, onClose }: { product: Product; onClose: () => void
         recipient_email: email || null,
         amount: product.public_price,
       })
-      .select("reference")
+      .select("id, reference")
       .single();
-    setSubmitting(false);
     if (err) {
+      setSubmitting(false);
       setError(err.message);
+      return;
+    }
+    const { data: fn, error: fnErr } = await supabase.functions.invoke("purchase-data", {
+      body: { order_id: data.id },
+    });
+    setSubmitting(false);
+    if (fnErr || (fn && fn.success === false)) {
+      setError((fn && fn.error) || fnErr?.message || "Provider could not process this order. We'll refund any charge.");
       return;
     }
     setDone({ reference: data.reference });
