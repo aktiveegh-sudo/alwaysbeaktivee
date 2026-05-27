@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Copy,
   ExternalLink,
+  LayoutGrid,
   Loader2,
   Package,
   PackageSearch,
@@ -1012,3 +1013,22 @@ function AgentBuyDialog({
     </div>
   );
 }
+
+function DashboardDoodle() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-70">
+      <svg className="absolute -top-4 -right-6 h-32 w-32 animate-doodle-float text-primary/50" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <path className="animate-doodle-draw" d="M10 70 Q 30 30 50 60 T 90 40" />
+        <circle cx="78" cy="22" r="4" className="fill-gold/70 stroke-none" />
+        <circle cx="20" cy="20" r="2.5" className="fill-primary/70 stroke-none" />
+      </svg>
+      <svg className="absolute -bottom-6 -left-6 h-24 w-24 animate-doodle-spin text-gold/40" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <path d="M50 8 L58 42 L92 50 L58 58 L50 92 L42 58 L8 50 L42 42 Z" />
+      </svg>
+      <svg className="absolute top-8 left-6 h-10 w-10 animate-doodle-float text-success/60" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+        <path d="M6 22 L16 30 L34 8" />
+      </svg>
+    </div>
+  );
+}
+
