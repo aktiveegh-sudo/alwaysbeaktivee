@@ -438,22 +438,30 @@ export default function Dashboard() {
 
   return (
     <div className="container py-10">
-      <div className="grid gap-6 lg:grid-cols-[260px_1fr] items-start">
+      <div className="grid gap-6 lg:grid-cols-[280px_1fr] items-start">
         <aside className="lg:sticky lg:top-24 space-y-4">
-          <Card>
-            <CardContent className="p-4 space-y-1">
-              <h1 className="font-display text-2xl font-bold">Hello, {profile?.full_name || "Agent"} 👋</h1>
-              <p className="text-muted-foreground text-sm">
-                {isAgent ? "Manage your wallet, store and orders." : "Activate your agent account to start earning."}
+          <Card className="relative overflow-hidden border-primary/30 bg-gradient-to-br from-primary/15 via-card to-gold/10">
+            <DashboardDoodle />
+            <CardContent className="relative p-5 space-y-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-primary/80">Agent Console</p>
+              <h1 className="font-display text-2xl font-bold leading-tight">
+                Hi, {(profile?.full_name || "Agent").split(" ")[0]} <span className="inline-block animate-doodle-float">👋</span>
+              </h1>
+              <p className="text-muted-foreground text-xs">
+                {isAgent ? "Wallet, store and orders — all in one place." : "Activate to unlock agent pricing."}
               </p>
+              <div className="mt-3 rounded-xl border border-gold/30 bg-background/60 p-3 backdrop-blur">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Wallet</div>
+                <div className="font-display text-xl font-bold text-gold">{formatGHS(wallet?.balance || 0)}</div>
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-3">
-              <p className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dashboard</p>
-              <div className="space-y-1.5">
-                <TabButton label="Overview" active={tab === "overview"} onClick={() => setTab("overview")} className="w-full justify-start" />
+              <p className="px-2 py-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Navigate</p>
+              <div className="space-y-1">
+                <TabButton label="Overview" active={tab === "overview"} onClick={() => setTab("overview")} icon={<LayoutGrid className="h-4 w-4" />} className="w-full justify-start" />
                 <TabButton label="Buy Packages" active={tab === "buy"} onClick={() => setTab("buy")} icon={<ShoppingCart className="h-4 w-4" />} className="w-full justify-start" />
                 <TabButton label="Store Packages" active={tab === "packages"} onClick={() => setTab("packages")} icon={<Package className="h-4 w-4" />} className="w-full justify-start" />
                 <TabButton label="Store Orders" active={tab === "orders"} onClick={() => setTab("orders")} icon={<PackageSearch className="h-4 w-4" />} className="w-full justify-start" />
@@ -466,6 +474,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </aside>
+
 
         <main className="min-w-0 space-y-6">
 
