@@ -140,3 +140,21 @@
   50% { box-shadow: 0 0 30px 8px hsl(var(--primary) / 0.25); }
 }
 .animate-pulse-glow { animation: pulse-glow 2.5s ease-in-out infinite; }
+
+@keyframes doodle-float {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-8px) rotate(3deg); }
+}
+.animate-doodle-float { animation: doodle-float 5s ease-in-out infinite; }
+
+@keyframes doodle-spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-doodle-spin { animation: doodle-spin-slow 18s linear infinite; }
+
+@keyframes doodle-draw {
+  to { stroke-dashoffset: 0; }
+}
+.animate-doodle-draw { stroke-dasharray: 240; stroke-dashoffset: 240; animation: doodle-draw 3.5s ease-in-out infinite alternate; }
+

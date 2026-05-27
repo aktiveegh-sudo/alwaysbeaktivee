@@ -1,1 +1,4 @@
 project_id = "msrmlnyzkkupdhanxgyp"
+
+[functions.purchase-data]
+verify_jwt = false
