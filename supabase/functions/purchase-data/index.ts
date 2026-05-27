@@ -6,20 +6,20 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SWIFT_API_URL = Deno.env.get("SWIFT_API_URL") || "https://lsocdjpflecduumopijn.supabase.co/functions/v1/developer-api/payment/data";
-const SWIFT_API_KEY = Deno.env.get("SWIFT_API_KEY");
-
-if (!SWIFT_API_KEY) {
-  throw new Error("Missing SWIFT_API_KEY environment variable.");
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const SWIFT_API_URL = Deno.env.get("SWIFT_API_URL") || "https://lsocdjpflecduumopijn.supabase.co/functions/v1/developer-api/payment/data";
+    const SWIFT_API_KEY = Deno.env.get("SWIFT_API_KEY");
+
+    if (!SWIFT_API_KEY) {
+      return json({ success: false, error: "Missing SWIFT_API_KEY environment variable." });
+    }
+
     const { order_id } = await req.json();
     if (!order_id) {
-      return json({ success: false, error: "order_id required" }, 400);
+      return json({ success: false, error: "order_id required" });
     }
 
     const supabase = createClient(
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (oErr || !order) {
-      return json({ success: false, error: oErr?.message || "Order not found" }, 404);
+      return json({ success: false, error: oErr?.message || "Order not found" });
     }
 
     const product = (order as any).products;
@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
         .from("orders")
         .update({ status: "failed", swift_status: "fulfillment_failed", notes: "Missing Swift package ID for product." })
         .eq("id", order_id);
-      return json({ success: false, error: "Product missing Swift package ID." }, 400);
+      return json({ success: false, error: "Product missing Swift package ID." });
     }
 
     let recipient = String(order.recipient_phone || "").replace(/\D/g, "");
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
         .from("orders")
         .update({ status: "failed", swift_status: "fulfillment_failed", notes: `Swift error: ${errMsg}` })
         .eq("id", order_id);
-      return json({ success: false, error: errMsg, provider: resultBody }, 502);
+      return json({ success: false, error: errMsg, provider: resultBody });
     }
 
     const swiftOrderId = resultBody?.data?.id || resultBody?.data?.order_id || null;
@@ -104,13 +104,13 @@ Deno.serve(async (req) => {
     return json({ success: true, provider: resultBody });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return json({ success: false, error: msg }, 500);
+    return json({ success: false, error: msg });
   }
 });
 
-function json(body: unknown, status = 200) {
+function json(body: unknown) {
   return new Response(JSON.stringify(body), {
-    status,
+    status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
