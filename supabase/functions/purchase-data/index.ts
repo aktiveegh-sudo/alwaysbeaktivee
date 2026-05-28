@@ -57,11 +57,20 @@ Deno.serve(async (req) => {
     if (recipient.startsWith("233") && recipient.length === 12) recipient = "0" + recipient.slice(3);
     if (recipient.length === 9) recipient = "0" + recipient;
 
+    const resolvedPackageId = await resolveSwiftPackageId(swiftPackageId, product, SWIFT_API_URL, SWIFT_API_KEY);
+    if (!resolvedPackageId) {
+      await supabase
+        .from("orders")
+        .update({ status: "failed", swift_status: "fulfillment_failed", notes: "Unable to resolve Swift package ID for product." })
+        .eq("id", order_id);
+      return json({ success: false, error: "Unable to resolve Swift package ID for product." });
+    }
+
+    // Build payload matching SwiftData docs: package_id + phone (+ optional request_id)
     const payload = {
-      package_id: swiftPackageId,
-      recipient_phone: recipient,
-      amount: Number(order.amount),
-      reference: order.reference,
+      package_id: resolvedPackageId,
+      phone: recipient,
+      request_id: order.reference,
       metadata: {
         order_id,
         product_id: order.product_id,
@@ -69,13 +78,40 @@ Deno.serve(async (req) => {
       },
     };
 
+    const bodyStr = JSON.stringify(payload);
+
+    // Prepare headers: Authorization + Content-Type + Idempotency
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${SWIFT_API_KEY}`,
+      "Content-Type": "application/json",
+      "X-Idempotency-Key": String(order.reference || order_id),
+    };
+
+    // Optional HMAC signing: use SWIFT_SIGNING_KEY if available to compute X-Swift-Signature
+    const SWIFT_SIGNING_KEY = Deno.env.get("SWIFT_SIGNING_KEY");
+    if (SWIFT_SIGNING_KEY) {
+      try {
+        const enc = new TextEncoder();
+        const key = await crypto.subtle.importKey(
+          "raw",
+          enc.encode(SWIFT_SIGNING_KEY),
+          { name: "HMAC", hash: "SHA-256" },
+          false,
+          ["sign"]
+        );
+        const sigBuf = await crypto.subtle.sign("HMAC", key, enc.encode(bodyStr));
+        const sigArray = Array.from(new Uint8Array(sigBuf));
+        const sigHex = sigArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+        headers["X-Swift-Signature"] = sigHex;
+      } catch (e) {
+        // signature failure should not block fulfillment; log via notes later
+      }
+    }
+
     const resp = await fetch(SWIFT_API_URL, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${SWIFT_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+      headers,
+      body: bodyStr,
     });
 
     const resultBody = await resp.json();
@@ -107,6 +143,64 @@ Deno.serve(async (req) => {
     return json({ success: false, error: msg });
   }
 });
+
+async function fetchSwiftPlans(swiftApiUrl: string, apiKey: string) {
+  try {
+    const url = new URL(swiftApiUrl);
+    if (url.pathname.endsWith("/payment/data")) {
+      url.pathname = url.pathname.replace(/\/payment\/data$/, "/plans");
+    } else {
+      url.pathname = url.pathname.replace(/\/$/, "") + "/plans";
+    }
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+    const body = await response.json();
+    return Array.isArray(body?.plans) ? body.plans : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizePackageSize(dataVolumeMb: number | null) {
+  if (!dataVolumeMb) return null;
+  if (dataVolumeMb % 1024 === 0) return `${dataVolumeMb / 1024}GB`;
+  return `${dataVolumeMb}MB`;
+}
+
+function networkCandidates(network: string) {
+  const value = network?.toLowerCase();
+  if (value === "mtn") return ["BLUE", "MTN", "RED", "YELLO"];
+  if (value === "telecel") return ["YELLO", "TELECEL", "RED"];
+  if (value === "airteltigo") return ["YELLO", "AT", "RED"];
+  return ["BLUE", "YELLO", "RED", "MTN", "TELECEL", "AT"];
+}
+
+async function resolveSwiftPackageId(
+  swiftPackageId: string,
+  product: any,
+  swiftApiUrl: string,
+  apiKey: string
+) {
+  const plans = await fetchSwiftPlans(swiftApiUrl, apiKey);
+  const exactMatch = plans.find((plan: any) => plan.package_id === swiftPackageId);
+  if (exactMatch) return swiftPackageId;
+
+  const packageSize = normalizePackageSize(product.data_volume_mb);
+  if (!packageSize) return null;
+
+  const networkOrder = networkCandidates(product.network);
+  const candidates = plans.filter((plan: any) => plan.package_size === packageSize);
+  for (const network of networkOrder) {
+    const plan = candidates.find((candidate: any) => candidate.network === network);
+    if (plan) return plan.package_id;
+  }
+
+  return candidates.length ? candidates[0].package_id : null;
+}
 
 function json(body: unknown) {
   return new Response(JSON.stringify(body), {

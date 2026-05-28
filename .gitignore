@@ -24,3 +24,10 @@ dist-ssr
 *.sw?
 .vercel
 .env*
+
+# Supabase CLI temp files and local test artifacts
+supabase/.temp/
+.supabase_set_secret.ps1
+swift_plans_output.json
+swift_plans_utf8.json
+

@@ -65,9 +65,6 @@ export default function PaymentResult() {
                 <Button asChild>
                   <Link to="/">Return home</Link>
                 </Button>
-                <Button asChild variant="outline">
-                  <Link to="/admin">View admin dashboard</Link>
-                </Button>
               </div>
             </div>
           )}
