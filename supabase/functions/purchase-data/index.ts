@@ -124,8 +124,8 @@ Deno.serve(async (req) => {
       return json({ success: false, error: errMsg, provider: resultBody });
     }
 
-    const swiftOrderId = resultBody?.data?.id || resultBody?.data?.order_id || null;
-    const swiftStatus = resultBody?.data?.status || "processing";
+    const swiftOrderId = resultBody?.order_id || resultBody?.data?.id || resultBody?.data?.order_id || null;
+    const swiftStatus = resultBody?.status || resultBody?.data?.status || "processing";
 
     await supabase
       .from("orders")

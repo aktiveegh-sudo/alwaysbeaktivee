@@ -124,6 +124,8 @@ export type Database = {
           reference: string
           status: Database["public"]["Enums"]["order_status"]
           store_owner_id: string | null
+          swift_order_id: string | null
+          swift_status: string | null
           updated_at: string
         }
         Insert: {
@@ -140,6 +142,8 @@ export type Database = {
           reference?: string
           status?: Database["public"]["Enums"]["order_status"]
           store_owner_id?: string | null
+          swift_order_id?: string | null
+          swift_status?: string | null
           updated_at?: string
         }
         Update: {
@@ -156,6 +160,8 @@ export type Database = {
           reference?: string
           status?: Database["public"]["Enums"]["order_status"]
           store_owner_id?: string | null
+          swift_order_id?: string | null
+          swift_status?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -167,6 +173,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payment_provider_settings: {
+        Row: {
+          created_at: string
+          id: string
+          is_live: boolean
+          paystack_public_key: string | null
+          paystack_secret_key: string | null
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_live?: boolean
+          paystack_public_key?: string | null
+          paystack_secret_key?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_live?: boolean
+          paystack_public_key?: string | null
+          paystack_secret_key?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payment_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          metadata: Json
+          paystack_access_code: string | null
+          paystack_authorization_url: string | null
+          paystack_response: Json | null
+          processed_at: string | null
+          purpose: string
+          reference: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json
+          paystack_access_code?: string | null
+          paystack_authorization_url?: string | null
+          paystack_response?: Json | null
+          processed_at?: string | null
+          purpose: string
+          reference: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json
+          paystack_access_code?: string | null
+          paystack_authorization_url?: string | null
+          paystack_response?: Json | null
+          processed_at?: string | null
+          purpose?: string
+          reference?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
       }
       products: {
         Row: {
@@ -180,6 +267,7 @@ export type Database = {
           network: Database["public"]["Enums"]["network_type"]
           public_price: number
           stock_count: number | null
+          swift_package_id: string | null
           type: Database["public"]["Enums"]["product_type"]
           updated_at: string
         }
@@ -194,6 +282,7 @@ export type Database = {
           network: Database["public"]["Enums"]["network_type"]
           public_price: number
           stock_count?: number | null
+          swift_package_id?: string | null
           type: Database["public"]["Enums"]["product_type"]
           updated_at?: string
         }
@@ -208,6 +297,7 @@ export type Database = {
           network?: Database["public"]["Enums"]["network_type"]
           public_price?: number
           stock_count?: number | null
+          swift_package_id?: string | null
           type?: Database["public"]["Enums"]["product_type"]
           updated_at?: string
         }
