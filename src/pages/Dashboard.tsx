@@ -635,15 +635,30 @@ export default function Dashboard() {
                     <p className="text-sm text-muted-foreground">No {NETWORK_LABEL[buyNetwork]} data bundles available.</p>
                   ) : (
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {filteredBuyDataProducts.map((item) => (
-                        <div key={item.id} className="rounded-lg border border-border/70 p-3">
-                          <div className="font-semibold">{formatPackageLabel(item)}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">Agent price {formatGHS(item.agent_price)}</div>
-                          <Button size="sm" className="mt-3 w-full" onClick={() => setSelectedBuyProduct(item)}>
-                            Buy at agent price
-                          </Button>
-                        </div>
-                      ))}
+                      {filteredBuyDataProducts.map((item) => {
+                        const key = toNetworkKey(item.network);
+                        const brand =
+                          key === "mtn"
+                            ? { bg: "#facc15", fg: "#000", border: "#eab308", sub: "text-black/75", btn: "bg-black text-white hover:bg-black/90" }
+                            : key === "telecel"
+                            ? { bg: "#dc2626", fg: "#fff", border: "#b91c1c", sub: "text-white/85", btn: "bg-white text-black hover:bg-white/90" }
+                            : key === "airteltigo"
+                            ? { bg: "#2563eb", fg: "#fff", border: "#1d4ed8", sub: "text-white/85", btn: "bg-white text-black hover:bg-white/90" }
+                            : null;
+                        return (
+                          <div
+                            key={item.id}
+                            className="rounded-lg border p-3 transition hover:-translate-y-0.5 hover:shadow-glow"
+                            style={brand ? { background: brand.bg, color: brand.fg, borderColor: brand.border } : undefined}
+                          >
+                            <div className="font-semibold">{formatPackageLabel(item)}</div>
+                            <div className={cn("text-xs mt-0.5", brand ? brand.sub : "text-muted-foreground")}>Agent price {formatGHS(item.agent_price)}</div>
+                            <Button size="sm" className={cn("mt-3 w-full", brand?.btn)} onClick={() => setSelectedBuyProduct(item)}>
+                              Buy at agent price
+                            </Button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -865,13 +880,23 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition",
-        active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-secondary",
+        "group inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition relative",
+        active
+          ? "bg-gradient-to-r from-primary to-gold text-primary-foreground shadow-elegant"
+          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
         className
       )}
     >
-      {icon}
-      {label}
+      {icon && (
+        <span className={cn(
+          "grid h-7 w-7 place-items-center rounded-md transition shrink-0",
+          active ? "bg-background/25" : "bg-secondary group-hover:bg-background"
+        )}>
+          {icon}
+        </span>
+      )}
+      <span>{label}</span>
+      {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-background/80" />}
     </button>
   );
 }

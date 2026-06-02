@@ -99,43 +99,56 @@ export default function Products() {
           </Card>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((p) => (
-              <Card
-                key={p.id}
-                className="group transition-all hover:-translate-y-1 hover:shadow-glow cursor-pointer"
-                onClick={() => setSelected(p)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold uppercase",
-                        p.type === "checker" ? "bg-accent/15 text-accent border-accent/30" : networkBadge[(p.network as Network) || "other"]
-                      )}
-                    >
-                      {p.type === "checker" ? <ShieldCheck className="h-3 w-3" /> : p.network === "telecel" ? <Wifi className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}
-                      {p.type === "checker" ? "checker" : p.network}
-                    </span>
-                    {p.type === "data" && p.data_volume_mb ? (
-                      <span className="text-xs text-muted-foreground">
-                        {p.data_volume_mb >= 1024 ? `${(p.data_volume_mb / 1024).toFixed(1)}GB` : `${p.data_volume_mb}MB`}
+            {filtered.map((p) => {
+              const isData = p.type === "data";
+              const net = (p.network as Network) || "other";
+              const brand =
+                isData && net === "mtn"
+                  ? { bg: "#facc15", fg: "#000", border: "#eab308", pill: "bg-black/15 text-black", btn: "bg-black text-white hover:bg-black/90", sub: "text-black/75" }
+                  : isData && net === "telecel"
+                  ? { bg: "#dc2626", fg: "#fff", border: "#b91c1c", pill: "bg-white/20 text-white", btn: "bg-white text-black hover:bg-white/90", sub: "text-white/85" }
+                  : isData && net === "airteltigo"
+                  ? { bg: "#2563eb", fg: "#fff", border: "#1d4ed8", pill: "bg-white/20 text-white", btn: "bg-white text-black hover:bg-white/90", sub: "text-white/85" }
+                  : null;
+              return (
+                <Card
+                  key={p.id}
+                  onClick={() => setSelected(p)}
+                  className="group transition-all hover:-translate-y-1 hover:shadow-glow cursor-pointer overflow-hidden"
+                  style={brand ? { background: brand.bg, color: brand.fg, borderColor: brand.border } : undefined}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold uppercase",
+                          brand ? brand.pill : p.type === "checker" ? "bg-accent/15 text-accent border border-accent/30" : "border " + networkBadge[net]
+                        )}
+                      >
+                        {p.type === "checker" ? <ShieldCheck className="h-3 w-3" /> : p.network === "telecel" ? <Wifi className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}
+                        {p.type === "checker" ? "checker" : p.network}
                       </span>
-                    ) : null}
-                  </div>
-                  <h3 className="font-display text-lg font-bold leading-snug">{p.name}</h3>
-                  {p.description && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
-                  )}
-                  <div className="mt-5 flex items-end justify-between">
-                    <div>
-                      <div className="text-xs text-muted-foreground">Price</div>
-                      <div className="font-display text-2xl font-bold text-gold">{formatGHS(p.public_price)}</div>
+                      {p.type === "data" && p.data_volume_mb ? (
+                        <span className={cn("text-xs font-semibold", brand ? brand.sub : "text-muted-foreground")}>
+                          {p.data_volume_mb >= 1024 ? `${(p.data_volume_mb / 1024).toFixed(1)}GB` : `${p.data_volume_mb}MB`}
+                        </span>
+                      ) : null}
                     </div>
-                    <Button size="sm">Buy</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <h3 className="font-display text-lg font-bold leading-snug">{p.name}</h3>
+                    {p.description && (
+                      <p className={cn("text-xs mt-1 line-clamp-2", brand ? brand.sub : "text-muted-foreground")}>{p.description}</p>
+                    )}
+                    <div className="mt-5 flex items-end justify-between">
+                      <div>
+                        <div className={cn("text-xs", brand ? brand.sub : "text-muted-foreground")}>Price</div>
+                        <div className={cn("font-display text-2xl font-bold", brand ? "" : "text-gold")}>{formatGHS(p.public_price)}</div>
+                      </div>
+                      <Button size="sm" className={brand ? brand.btn : undefined}>Buy</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </section>
