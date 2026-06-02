@@ -1,0 +1,1 @@
+UPDATE public.orders SET swift_order_id = '0287c54e-bfe4-4df4-83fb-12eb607abfe7', swift_status = 'pending', notes = 'Swift order id: 0287c54e-bfe4-4df4-83fb-12eb607abfe7' WHERE id = 'a849cf11-3bc4-4325-8bc7-6ff4b94b2999';
