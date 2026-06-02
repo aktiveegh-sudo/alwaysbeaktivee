@@ -880,13 +880,23 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition",
-        active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-secondary",
+        "group inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition relative",
+        active
+          ? "bg-gradient-to-r from-primary to-gold text-primary-foreground shadow-elegant"
+          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
         className
       )}
     >
-      {icon}
-      {label}
+      {icon && (
+        <span className={cn(
+          "grid h-7 w-7 place-items-center rounded-md transition shrink-0",
+          active ? "bg-background/25" : "bg-secondary group-hover:bg-background"
+        )}>
+          {icon}
+        </span>
+      )}
+      <span>{label}</span>
+      {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-background/80" />}
     </button>
   );
 }
