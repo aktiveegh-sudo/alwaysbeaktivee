@@ -86,11 +86,15 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Unable to resolve Swift package ID for product." });
     }
 
+    // For retries, append a suffix so Swift treats it as a new request_id / idempotency key
+    const idemSuffix = retry ? `-r${Date.now()}` : "";
+    const requestId = `${order.reference}${idemSuffix}`;
+
     // Build payload matching SwiftData docs: package_id + phone (+ optional request_id)
     const payload = {
       package_id: resolvedPackageId,
       phone: recipient,
-      request_id: order.reference,
+      request_id: requestId,
       metadata: {
         order_id,
         product_id: order.product_id,
@@ -104,7 +108,7 @@ Deno.serve(async (req) => {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${SWIFT_API_KEY}`,
       "Content-Type": "application/json",
-      "X-Idempotency-Key": String(order.reference || order_id),
+      "X-Idempotency-Key": requestId,
     };
 
     // Optional HMAC signing: use SWIFT_SIGNING_KEY if available to compute X-Swift-Signature
