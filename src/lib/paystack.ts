@@ -28,13 +28,27 @@ export async function initiatePaystackCheckout(orderId: string, returnUrl: strin
 }
 
 export async function verifyPaystackOrder(orderReference: string) {
-  const { data, error } = await supabase.functions.invoke("paystack-verify", {
+  // Use direct fetch to avoid supabase.functions.invoke's automatic JSON parse
+  // which throws "Unexpected end of JSON input" when the function returns an
+  // empty error body.
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-verify`;
+  const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: anon,
+      Authorization: `Bearer ${anon}`,
+    },
     body: JSON.stringify({ order_reference: orderReference }),
-    headers: { "Content-Type": "application/json" },
   });
 
-  if (error) {
-    throw error;
+  const text = await resp.text();
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    throw new Error(`Verification service returned non-JSON response (${resp.status}).`);
   }
 
   if (!data?.success) {

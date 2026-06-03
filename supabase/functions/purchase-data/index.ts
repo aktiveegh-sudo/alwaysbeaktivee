@@ -17,7 +17,14 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Missing SWIFT_API_KEY environment variable." });
     }
 
-    const { order_id } = await req.json();
+    const rawReq = await req.text();
+    let reqBody: any = null;
+    try {
+      reqBody = rawReq ? JSON.parse(rawReq) : null;
+    } catch {
+      return json({ success: false, error: "Invalid JSON in request body." });
+    }
+    const order_id = reqBody?.order_id;
     if (!order_id) {
       return json({ success: false, error: "order_id required" });
     }
@@ -114,14 +121,20 @@ Deno.serve(async (req) => {
       body: bodyStr,
     });
 
-    const resultBody = await resp.json();
-    if (!resp.ok || !resultBody?.success) {
-      const errMsg = resultBody?.message || resultBody?.error || `Swift API error ${resp.status}`;
+    const respText = await resp.text();
+    let resultBody: any = null;
+    try {
+      resultBody = respText ? JSON.parse(respText) : null;
+    } catch {
+      resultBody = null;
+    }
+    if (!resp.ok || !resultBody || !resultBody.success) {
+      const errMsg = resultBody?.message || resultBody?.error || `Swift API error ${resp.status}: ${respText.slice(0, 200)}`;
       await supabase
         .from("orders")
         .update({ status: "failed", swift_status: "fulfillment_failed", notes: `Swift error: ${errMsg}` })
         .eq("id", order_id);
-      return json({ success: false, error: errMsg, provider: resultBody });
+      return json({ success: false, error: errMsg, provider: resultBody, raw: respText.slice(0, 500) });
     }
 
     const swiftOrderId = resultBody?.order_id || resultBody?.data?.id || resultBody?.data?.order_id || null;
