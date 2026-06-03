@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .select("id, status")
+      .select("id, status, swift_order_id")
       .eq("reference", orderReference)
       .maybeSingle();
 
@@ -70,6 +70,16 @@ Deno.serve(async (req) => {
 
     if (order.status === "delivered") {
       return json({ success: true, message: "Order already delivered." });
+    }
+
+    // If we already submitted to Swift, do not resend — just acknowledge.
+    if (order.swift_order_id) {
+      return json({
+        success: true,
+        message: "Order already submitted to Swift.",
+        order_reference: orderReference,
+        swift_order_id: order.swift_order_id,
+      });
     }
 
     // Call purchase-data via direct fetch to avoid SDK invoke JSON-parse issues.
