@@ -25,6 +25,7 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Invalid JSON in request body." });
     }
     const order_id = reqBody?.order_id;
+    const retry = Boolean(reqBody?.retry);
     if (!order_id) {
       return json({ success: false, error: "order_id required" });
     }
