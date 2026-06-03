@@ -217,20 +217,22 @@ async function resolveSwiftPackageId(
   apiKey: string
 ) {
   const plans = await fetchSwiftPlans(swiftApiUrl, apiKey);
+  const networkOrder = networkCandidates(product.network);
+
+  // Exact match — but only trust it if the plan's network matches the product's network.
   const exactMatch = plans.find((plan: any) => plan.package_id === swiftPackageId);
-  if (exactMatch) return swiftPackageId;
+  if (exactMatch && networkOrder.includes(exactMatch.network)) return swiftPackageId;
 
   const packageSize = normalizePackageSize(product.data_volume_mb);
   if (!packageSize) return null;
 
-  const networkOrder = networkCandidates(product.network);
   const candidates = plans.filter((plan: any) => plan.package_size === packageSize);
   for (const network of networkOrder) {
     const plan = candidates.find((candidate: any) => candidate.network === network);
     if (plan) return plan.package_id;
   }
 
-  return candidates.length ? candidates[0].package_id : null;
+  return null;
 }
 
 function json(body: unknown) {
