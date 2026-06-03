@@ -46,7 +46,13 @@ Deno.serve(async (req) => {
       }
     );
 
-    const verifyBody = await verifyResponse.json();
+    const verifyText = await verifyResponse.text();
+    let verifyBody: any = null;
+    try {
+      verifyBody = verifyText ? JSON.parse(verifyText) : null;
+    } catch {
+      return json({ success: false, error: "Paystack returned non-JSON response.", raw: verifyText.slice(0, 500) });
+    }
     if (!verifyResponse.ok || !verifyBody?.status || verifyBody.data?.status !== "success") {
       return json({ success: false, error: verifyBody?.message || "Payment verification failed.", details: verifyBody });
     }
@@ -66,27 +72,49 @@ Deno.serve(async (req) => {
       return json({ success: true, message: "Order already delivered." });
     }
 
+    // Call purchase-data via direct fetch to avoid SDK invoke JSON-parse issues.
     let purchaseResult: any = null;
-    let purchaseError: any = null;
+    let purchaseHttpStatus = 0;
+    let purchaseRaw = "";
     try {
-      const response = await supabase.functions.invoke("purchase-data", {
+      const purchaseUrl = `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/purchase-data`;
+      const purchaseResp = await fetch(purchaseUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+        },
         body: JSON.stringify({ order_id: order.id }),
-        headers: { "Content-Type": "application/json" },
       });
-      purchaseResult = response.data;
-      purchaseError = response.error;
+      purchaseHttpStatus = purchaseResp.status;
+      purchaseRaw = await purchaseResp.text();
+      if (purchaseRaw) {
+        try {
+          purchaseResult = JSON.parse(purchaseRaw);
+        } catch {
+          purchaseResult = null;
+        }
+      }
     } catch (invokeError) {
-      purchaseError = invokeError as Error;
-    }
-
-    if (purchaseError) {
-      return json({ success: false, error: purchaseError.message || "Failed to process order after payment." });
-    }
-
-    if (!purchaseResult?.success) {
       return json({
         success: false,
-        error: purchaseResult?.error || "Order was verified but fulfillment failed.",
+        error: invokeError instanceof Error ? invokeError.message : String(invokeError),
+      });
+    }
+
+    if (!purchaseResult) {
+      return json({
+        success: false,
+        error: `Fulfillment service returned no JSON (status ${purchaseHttpStatus}).`,
+        raw: purchaseRaw.slice(0, 500),
+      });
+    }
+
+    if (!purchaseResult.success) {
+      return json({
+        success: false,
+        error: purchaseResult.error || "Order was verified but fulfillment failed.",
         details: purchaseResult,
       });
     }
