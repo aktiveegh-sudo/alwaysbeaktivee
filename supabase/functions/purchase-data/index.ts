@@ -17,7 +17,14 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Missing SWIFT_API_KEY environment variable." });
     }
 
-    const { order_id } = await req.json();
+    const rawReq = await req.text();
+    let reqBody: any = null;
+    try {
+      reqBody = rawReq ? JSON.parse(rawReq) : null;
+    } catch {
+      return json({ success: false, error: "Invalid JSON in request body." });
+    }
+    const order_id = reqBody?.order_id;
     if (!order_id) {
       return json({ success: false, error: "order_id required" });
     }
