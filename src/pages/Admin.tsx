@@ -601,15 +601,40 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 function OrdersTab() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [retrying, setRetrying] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | OrderStatus>("all");
 
   const load = async () => {
     setLoading(true);
     const { data } = await supabase
       .from("orders")
-      .select("*, products(name, network)")
+      .select("*, products(name, network, type, data_volume_mb)")
       .order("created_at", { ascending: false })
-      .limit(100);
-    setItems(data || []);
+      .limit(200);
+    // Fetch related buyer/store profiles + payment in parallel
+    const rows = data || [];
+    const buyerIds = Array.from(new Set(rows.map((r) => r.buyer_user_id).filter(Boolean)));
+    const storeIds = Array.from(new Set(rows.map((r) => r.store_owner_id).filter(Boolean)));
+    const allIds = Array.from(new Set([...buyerIds, ...storeIds]));
+    const refs = rows.map((r) => r.reference).filter(Boolean);
+    const [{ data: profiles }, { data: payments }] = await Promise.all([
+      allIds.length
+        ? supabase.from("profiles").select("id, full_name, email, phone").in("id", allIds)
+        : Promise.resolve({ data: [] as any[] }),
+      refs.length
+        ? supabase.from("payment_transactions").select("reference, status, amount, currency, processed_at, paystack_authorization_url").in("reference", refs)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+    const paymentMap = new Map((payments || []).map((p: any) => [p.reference, p]));
+    const enriched = rows.map((r) => ({
+      ...r,
+      buyer: r.buyer_user_id ? profileMap.get(r.buyer_user_id) : null,
+      store_owner: r.store_owner_id ? profileMap.get(r.store_owner_id) : null,
+      payment: paymentMap.get(r.reference) || null,
+    }));
+    setItems(enriched);
     setLoading(false);
   };
   useEffect(() => {
@@ -621,35 +646,226 @@ function OrdersTab() {
     load();
   };
 
+  const retryOrder = async (order: any) => {
+    setRetrying(order.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("purchase-data", {
+        body: { order_id: order.id, retry: true },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success("Order resubmitted to Swift");
+      } else {
+        toast.error(data?.error || "Retry failed");
+      }
+      await load();
+      if (selected?.id === order.id) {
+        const fresh = (items || []).find((i) => i.id === order.id);
+        if (fresh) setSelected(fresh);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Retry failed");
+    } finally {
+      setRetrying(null);
+    }
+  };
+
+  const sourceOf = (o: any) =>
+    o.store_owner_id ? "Agent store" : o.buyer_user_id ? "Dashboard" : "Main site";
+
+  const filtered = filter === "all" ? items : items.filter((o) => o.status === filter);
+
   if (loading) return <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-10" />;
 
   return (
     <div className="space-y-3">
-      {items.length === 0 && <p className="text-muted-foreground text-center py-10">No orders yet.</p>}
-      {items.map((o) => (
-        <Card key={o.id}>
-          <CardContent className="p-4 flex flex-wrap items-center gap-3">
-            <div className="flex-1 min-w-[200px]">
-              <div className="font-mono text-sm font-bold">{o.reference}</div>
-              <div className="text-xs text-muted-foreground">
-                {o.products?.name || "—"} · {o.recipient_phone} · {formatGHS(o.amount)}
-              </div>
-            </div>
-            <span className={cn("rounded-full px-3 py-1 text-xs font-semibold uppercase", STATUS_COLORS[o.status as OrderStatus])}>
-              {o.status}
+      <div className="flex flex-wrap gap-2">
+        {(["all", "processing", "delivered", "failed", "refunded"] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => setFilter(s as any)}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-xs font-semibold uppercase border",
+              filter === s ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:bg-secondary"
+            )}
+          >
+            {s}
+          </button>
+        ))}
+        <Button variant="outline" size="sm" className="ml-auto" onClick={load}>
+          <RefreshCw className="h-3.5 w-3.5" /> Refresh
+        </Button>
+      </div>
+
+      {filtered.length === 0 && <p className="text-muted-foreground text-center py-10">No orders.</p>}
+      {filtered.map((o) => {
+        const isFailed = o.status === "failed";
+        const insufficient = isFailed && /insufficient|balance|funds/i.test(String(o.notes || ""));
+        return (
+          <Card key={o.id} className="hover:border-primary/40 transition-colors">
+            <CardContent className="p-4 flex flex-wrap items-center gap-3">
+              <button onClick={() => setSelected(o)} className="flex-1 min-w-[220px] text-left">
+                <div className="font-mono text-sm font-bold">{o.reference}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {o.products?.name || "—"} · {o.recipient_phone} · {formatGHS(o.amount)}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-1 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1"><StoreIcon className="h-3 w-3" /> {sourceOf(o)}</span>
+                  <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> {new Date(o.created_at).toLocaleString()}</span>
+                  {o.swift_order_id && <span className="inline-flex items-center gap-1 text-success"><CheckCircle2 className="h-3 w-3" /> Swift</span>}
+                </div>
+              </button>
+              <span className={cn("rounded-full px-3 py-1 text-xs font-semibold uppercase", STATUS_COLORS[o.status as OrderStatus])}>
+                {o.status}
+              </span>
+              {isFailed && (
+                <Button
+                  size="sm"
+                  variant={insufficient ? "default" : "outline"}
+                  disabled={retrying === o.id}
+                  onClick={(e) => { e.stopPropagation(); retryOrder(o); }}
+                >
+                  {retrying === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Retry
+                </Button>
+              )}
+              <select
+                value={o.status}
+                onChange={(e) => setStatus(o.id, e.target.value as OrderStatus)}
+                onClick={(e) => e.stopPropagation()}
+                className="h-9 rounded-lg border border-input bg-background px-2 text-xs"
+              >
+                {(["processing", "delivered", "failed", "refunded"] as OrderStatus[]).map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {selected && (
+        <OrderDetailDrawer
+          order={selected}
+          onClose={() => setSelected(null)}
+          onRetry={() => retryOrder(selected)}
+          retrying={retrying === selected.id}
+          source={sourceOf(selected)}
+        />
+      )}
+    </div>
+  );
+}
+
+function OrderDetailDrawer({
+  order, onClose, onRetry, retrying, source,
+}: { order: any; onClose: () => void; onRetry: () => void; retrying: boolean; source: string }) {
+  const payment = order.payment;
+  const isFailed = order.status === "failed";
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm p-4" onClick={onClose}>
+      <div
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-border bg-card/95 backdrop-blur">
+          <div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Order details</div>
+            <div className="font-mono text-lg font-bold">{order.reference}</div>
+          </div>
+          <button onClick={onClose} className="rounded-full p-2 hover:bg-secondary">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={cn("rounded-full px-3 py-1 text-xs font-semibold uppercase", STATUS_COLORS[order.status as OrderStatus])}>
+              {order.status}
             </span>
-            <select
-              value={o.status}
-              onChange={(e) => setStatus(o.id, e.target.value as OrderStatus)}
-              className="h-9 rounded-lg border border-input bg-background px-2 text-xs"
-            >
-              {(["processing", "delivered", "failed", "refunded"] as OrderStatus[]).map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </CardContent>
-        </Card>
-      ))}
+            {order.swift_status && (
+              <span className="rounded-full px-3 py-1 text-xs font-semibold uppercase bg-primary/10 text-primary">
+                Swift: {order.swift_status}
+              </span>
+            )}
+            {payment?.status && (
+              <span className={cn(
+                "rounded-full px-3 py-1 text-xs font-semibold uppercase",
+                payment.status === "success" ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
+              )}>
+                Payment: {payment.status}
+              </span>
+            )}
+          </div>
+
+          <Section title="Product">
+            <Row icon={Package} label="Name" value={order.products?.name || "—"} />
+            <Row icon={Hash} label="Network" value={(order.products?.network || "—").toUpperCase()} />
+            <Row icon={Hash} label="Volume" value={order.products?.data_volume_mb ? `${order.products.data_volume_mb} MB` : "—"} />
+            <Row icon={CreditCard} label="Amount" value={formatGHS(order.amount)} />
+          </Section>
+
+          <Section title="Recipient & Source">
+            <Row icon={Phone} label="Recipient" value={order.recipient_phone} />
+            <Row icon={StoreIcon} label="Source" value={source} />
+            {order.buyer && <Row icon={UserIcon} label="Buyer" value={`${order.buyer.full_name || order.buyer.email || "—"} ${order.buyer.phone ? `· ${order.buyer.phone}` : ""}`} />}
+            {order.store_owner && <Row icon={StoreIcon} label="Store owner" value={`${order.store_owner.full_name || order.store_owner.email || "—"}`} />}
+            <Row icon={Calendar} label="Created" value={new Date(order.created_at).toLocaleString()} />
+            <Row icon={Calendar} label="Updated" value={new Date(order.updated_at).toLocaleString()} />
+          </Section>
+
+          <Section title="Swift API">
+            <Row icon={Hash} label="Swift order ID" value={order.swift_order_id || "—"} mono />
+            <Row icon={Hash} label="Swift status" value={order.swift_status || "—"} />
+            {order.notes && (
+              <div className="rounded-lg border border-border bg-secondary/40 p-3 text-xs text-muted-foreground whitespace-pre-wrap break-words">
+                {order.notes}
+              </div>
+            )}
+          </Section>
+
+          <Section title="Payment">
+            <Row icon={Hash} label="Reference" value={order.reference} mono />
+            <Row icon={CreditCard} label="Paystack status" value={payment?.status || "—"} />
+            {payment?.amount != null && <Row icon={CreditCard} label="Paid" value={`${formatGHS(payment.amount)} ${payment.currency || ""}`} />}
+            {payment?.processed_at && <Row icon={Calendar} label="Processed" value={new Date(payment.processed_at).toLocaleString()} />}
+          </Section>
+
+          {isFailed && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 flex items-center justify-between gap-3">
+              <div className="text-sm">
+                <div className="font-semibold text-destructive">Fulfillment failed</div>
+                <div className="text-xs text-muted-foreground">Retry to resubmit this order to the Swift API.</div>
+              </div>
+              <Button onClick={onRetry} disabled={retrying}>
+                {retrying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Retry order
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2 font-semibold">{title}</div>
+      <div className="space-y-2">{children}</div>
+    </div>
+  );
+}
+
+function Row({ icon: Icon, label, value, mono }: { icon: any; label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start gap-3 text-sm">
+      <Icon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className={cn("text-foreground break-words", mono && "font-mono text-xs")}>{value}</div>
+      </div>
     </div>
   );
 }
