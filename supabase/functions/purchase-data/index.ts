@@ -52,6 +52,18 @@ Deno.serve(async (req) => {
       return json({ success: true, skipped: true });
     }
 
+    // Idempotency: if order already submitted successfully to Swift, do not resend
+    // unless this is an explicit retry from admin.
+    if (!retry && (order as any).swift_order_id) {
+      return json({
+        success: true,
+        skipped: true,
+        message: "Order already submitted to Swift",
+        swift_order_id: (order as any).swift_order_id,
+        swift_status: (order as any).swift_status,
+      });
+    }
+
     const swiftPackageId = product.swift_package_id;
     if (!swiftPackageId) {
       await supabase
