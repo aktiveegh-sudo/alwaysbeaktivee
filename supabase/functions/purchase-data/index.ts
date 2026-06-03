@@ -203,10 +203,11 @@ function normalizePackageSize(dataVolumeMb: number | null) {
 
 function networkCandidates(network: string) {
   const value = network?.toLowerCase();
-  if (value === "mtn") return ["BLUE", "MTN", "RED", "YELLO"];
-  if (value === "telecel") return ["YELLO", "TELECEL", "RED"];
-  if (value === "airteltigo") return ["YELLO", "AT", "RED"];
-  return ["BLUE", "YELLO", "RED", "MTN", "TELECEL", "AT"];
+  // SwiftData network codes: YELLO = MTN, RED = Telecel, BLUE = AirtelTigo
+  if (value === "mtn") return ["YELLO", "MTN"];
+  if (value === "telecel") return ["RED", "TELECEL", "VODAFONE"];
+  if (value === "airteltigo") return ["BLUE", "AT", "AIRTELTIGO"];
+  return [];
 }
 
 async function resolveSwiftPackageId(
