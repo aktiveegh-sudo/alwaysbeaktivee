@@ -365,6 +365,7 @@ export type Database = {
           singleton: boolean
           site_name: string
           updated_at: string
+          whatsapp_channel_url: string | null
           whatsapp_number: string | null
         }
         Insert: {
@@ -377,6 +378,7 @@ export type Database = {
           singleton?: boolean
           site_name?: string
           updated_at?: string
+          whatsapp_channel_url?: string | null
           whatsapp_number?: string | null
         }
         Update: {
@@ -389,6 +391,7 @@ export type Database = {
           singleton?: boolean
           site_name?: string
           updated_at?: string
+          whatsapp_channel_url?: string | null
           whatsapp_number?: string | null
         }
         Relationships: []
