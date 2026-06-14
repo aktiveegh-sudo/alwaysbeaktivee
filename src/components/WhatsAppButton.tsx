@@ -18,15 +18,11 @@ export function WhatsAppButton() {
   useEffect(() => {
     supabase
       .from("site_settings")
-      .select("whatsapp_channel_url, whatsapp_number")
+      .select("whatsapp_channel_url")
       .maybeSingle()
       .then(({ data }) => {
         const channel = (data as any)?.whatsapp_channel_url?.trim();
-        if (channel) {
-          setHref(channel);
-        } else if (data?.whatsapp_number) {
-          setHref(`https://wa.me/${data.whatsapp_number.replace(/\D/g, "")}`);
-        }
+        if (channel) setHref(channel);
       });
   }, []);
 
