@@ -957,6 +957,7 @@ function SettingsTab() {
       .update({
         site_name: s.site_name,
         whatsapp_number: s.whatsapp_number,
+        whatsapp_channel_url: s.whatsapp_channel_url,
         agent_signup_fee: Number(s.agent_signup_fee),
         min_withdrawal: Number(s.min_withdrawal),
         maintenance_mode: s.maintenance_mode,
@@ -976,6 +977,13 @@ function SettingsTab() {
           </Field>
           <Field label="WhatsApp number">
             <Input value={s.whatsapp_number || ""} onChange={(e) => setS({ ...s, whatsapp_number: e.target.value })} />
+          </Field>
+          <Field label="WhatsApp channel link" className="sm:col-span-2">
+            <Input
+              placeholder="https://whatsapp.com/channel/..."
+              value={s.whatsapp_channel_url || ""}
+              onChange={(e) => setS({ ...s, whatsapp_channel_url: e.target.value })}
+            />
           </Field>
           <Field label="Agent signup fee (GHS)">
             <Input type="number" step="0.01" value={s.agent_signup_fee} onChange={(e) => setS({ ...s, agent_signup_fee: e.target.value })} />
