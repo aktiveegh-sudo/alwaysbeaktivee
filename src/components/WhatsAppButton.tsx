@@ -21,8 +21,10 @@ export function WhatsAppButton() {
       .select("whatsapp_channel_url")
       .maybeSingle()
       .then(({ data }) => {
-        const channel = (data as any)?.whatsapp_channel_url?.trim();
-        if (channel) setHref(channel);
+        let channel = (data as any)?.whatsapp_channel_url?.trim();
+        if (!channel) return;
+        if (!/^https?:\/\//i.test(channel)) channel = "https://" + channel;
+        setHref(channel);
       });
   }, []);
 
