@@ -60,12 +60,23 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .select("id, status, swift_order_id")
+      .select("id, status, swift_order_id, store_owner_id, buyer_user_id")
       .eq("reference", orderReference)
       .maybeSingle();
 
     if (orderError || !order) {
       return json({ success: false, error: orderError?.message || "Order not found." });
+    }
+
+    // Resolve a store slug to redirect public buyers back to.
+    let storeSlug: string | null = null;
+    if (order.store_owner_id) {
+      const { data: store } = await supabase
+        .from("stores")
+        .select("slug")
+        .eq("user_id", order.store_owner_id)
+        .maybeSingle();
+      storeSlug = store?.slug ?? null;
     }
 
     if (order.status === "delivered") {
