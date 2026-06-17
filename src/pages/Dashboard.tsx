@@ -855,7 +855,14 @@ export default function Dashboard() {
         <AgentBuyDialog
           product={selectedBuyProduct}
           userId={user.id}
+          walletBalance={Number(wallet?.balance || 0)}
           onClose={() => setSelectedBuyProduct(null)}
+          onWalletPaid={(newBalance) => {
+            setWallet((w) => ({
+              balance: newBalance,
+              total_earned: Number(w?.total_earned || 0),
+            }));
+          }}
         />
       )}
     </div>
