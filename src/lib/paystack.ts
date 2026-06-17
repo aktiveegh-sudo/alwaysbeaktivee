@@ -59,10 +59,35 @@ export async function verifyPaystackOrder(orderReference: string) {
 }
 
 export async function payOrderFromWallet(orderId: string) {
-  const { data, error } = await supabase.functions.invoke("wallet-purchase", {
-    body: { order_id: orderId },
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) {
+    throw new Error("You must be signed in to pay from your wallet.");
+  }
+
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wallet-purchase`;
+  const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: anon,
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ order_id: orderId }),
   });
-  if (error) throw error;
+
+  const text = await resp.text();
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    throw new Error(`Wallet payment service returned a non-JSON response (${resp.status}).`);
+  }
+
+  if (!resp.ok) {
+    throw new Error(String(data?.error ?? `Wallet payment failed (${resp.status}).`));
+  }
   if (!data?.success) {
     throw new Error(String(data?.error ?? "Wallet payment failed."));
   }

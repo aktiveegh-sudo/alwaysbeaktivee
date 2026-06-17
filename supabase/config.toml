@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.sync-swift-packages]
 verify_jwt = false
+
+[functions.wallet-purchase]
+verify_jwt = false

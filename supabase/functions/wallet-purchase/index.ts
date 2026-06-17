@@ -1,6 +1,7 @@
 // Pays for an order using the signed-in user's wallet balance (no fees),
 // then forwards the order to the Swift fulfillment pipeline.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { formatSwiftError, getSwiftFulfillmentBlockReason } from "../_shared/swift.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,13 +15,14 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const SWIFT_API_URL = Deno.env.get("SWIFT_API_URL") || "https://lsocdjpflecduumopijn.supabase.co/functions/v1/developer-api/payment/data";
+    const SWIFT_API_KEY = Deno.env.get("SWIFT_API_KEY");
 
     const authHeader = req.headers.get("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
       return json({ success: false, error: "Missing Authorization header" });
     }
 
-    // Authed client to enforce auth.uid() inside RPC.
     const authed = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -30,6 +32,15 @@ Deno.serve(async (req) => {
     const orderId = String(body?.order_id ?? "");
     if (!orderId) return json({ success: false, error: "order_id is required" });
 
+    if (!SWIFT_API_KEY) {
+      return json({ success: false, error: "Missing SWIFT_API_KEY environment variable." });
+    }
+
+    const fulfillmentBlock = await getSwiftFulfillmentBlockReason(SWIFT_API_URL, SWIFT_API_KEY);
+    if (fulfillmentBlock) {
+      return json({ success: false, error: fulfillmentBlock });
+    }
+
     const { data: payResult, error: payErr } = await authed.rpc("wallet_pay_for_order", {
       _order_id: orderId,
     });
@@ -38,7 +49,6 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Wallet payment failed", details: payResult });
     }
 
-    // Fulfill via Swift.
     const purchaseResp = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/purchase-data`, {
       method: "POST",
       headers: {
@@ -50,10 +60,13 @@ Deno.serve(async (req) => {
     });
     const purchaseRaw = await purchaseResp.text();
     let purchase: any = null;
-    try { purchase = purchaseRaw ? JSON.parse(purchaseRaw) : null; } catch { purchase = null; }
+    try {
+      purchase = purchaseRaw ? JSON.parse(purchaseRaw) : null;
+    } catch {
+      purchase = null;
+    }
 
     if (!purchase?.success) {
-      // Refund wallet because fulfillment failed.
       const { data: order } = await admin
         .from("orders")
         .select("amount, reference, buyer_user_id")
@@ -77,9 +90,11 @@ Deno.serve(async (req) => {
           description: `Refund: fulfillment failed for ${order.reference}`,
         });
       }
+      const friendlyError = formatSwiftError(purchase?.error) ||
+        (purchaseRaw ? `Fulfillment failed (status ${purchaseResp.status}).` : "Fulfillment failed; wallet refunded.");
       return json({
         success: false,
-        error: purchase?.error || "Fulfillment failed; wallet refunded.",
+        error: `${friendlyError} Your wallet has been refunded.`,
         details: purchase,
       });
     }

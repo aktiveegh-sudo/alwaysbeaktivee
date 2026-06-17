@@ -1,6 +1,10 @@
 // Edge function: forward a data order to the Swift API for delivery and update order status.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { resolveSwiftPackageId } from "../_shared/swift.ts";
+import {
+  formatSwiftError,
+  getSwiftFulfillmentBlockReason,
+  resolveSwiftPackageId,
+} from "../_shared/swift.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,6 +65,19 @@ Deno.serve(async (req) => {
         swift_order_id: order.swift_order_id,
         swift_status: order.swift_status,
       });
+    }
+
+    const fulfillmentBlock = await getSwiftFulfillmentBlockReason(SWIFT_API_URL, SWIFT_API_KEY);
+    if (fulfillmentBlock) {
+      await supabase
+        .from("orders")
+        .update({
+          status: "failed",
+          swift_status: "fulfillment_failed",
+          notes: fulfillmentBlock,
+        })
+        .eq("id", order_id);
+      return json({ success: false, error: fulfillmentBlock });
     }
 
     const resolvedPackageId = await resolveSwiftPackageId(
@@ -149,7 +166,8 @@ Deno.serve(async (req) => {
       resultBody = null;
     }
     if (!resp.ok || !resultBody || !resultBody.success) {
-      const errMsg = resultBody?.message || resultBody?.error || `Swift API error ${resp.status}: ${respText.slice(0, 200)}`;
+      const rawErr = resultBody?.message || resultBody?.error || `Swift API error ${resp.status}: ${respText.slice(0, 200)}`;
+      const errMsg = formatSwiftError(rawErr);
       await supabase
         .from("orders")
         .update({ status: "failed", swift_status: "fulfillment_failed", notes: `Swift error: ${errMsg}` })
