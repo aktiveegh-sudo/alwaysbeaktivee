@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.purchase-data]
 verify_jwt = false
+
+[functions.sync-swift-packages]
+verify_jwt = false

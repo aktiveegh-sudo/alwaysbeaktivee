@@ -20,6 +20,15 @@ type OrderStatus = "processing" | "delivered" | "failed" | "refunded";
 type WithdrawalStatus = "pending" | "approved" | "rejected" | "paid";
 type Role = "admin" | "agent" | "subagent" | "customer";
 
+async function syncSwiftPackageIds(productId?: string) {
+  const { data, error } = await supabase.functions.invoke("sync-swift-packages", {
+    body: productId ? { product_id: productId } : {},
+  });
+  if (error) throw new Error(error.message || "Failed to sync Swift package IDs.");
+  if (!data?.success) throw new Error(data?.error || "Failed to sync Swift package IDs.");
+  return data as { updated: number; unmatched: number; total: number };
+}
+
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "products", label: "Products", icon: Package },
@@ -353,6 +362,8 @@ function UsersTab() {
 function ProductsTab() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
@@ -383,8 +394,29 @@ function ProductsTab() {
     setItems(sorted);
     setLoading(false);
   };
+
+  const runSwiftSync = async (productId?: string) => {
+    setSyncing(true);
+    setSyncNote(null);
+    try {
+      const result = await syncSwiftPackageIds(productId);
+      await load();
+      if (result.unmatched > 0) {
+        setSyncNote(`Synced ${result.updated} product(s). ${result.unmatched} could not be matched to a Swift plan.`);
+      } else if (result.updated > 0) {
+        setSyncNote(`Synced Swift package IDs for ${result.updated} product(s).`);
+      } else {
+        setSyncNote("All data products already have Swift package IDs.");
+      }
+    } catch (error) {
+      setSyncNote(error instanceof Error ? error.message : "Swift sync failed.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   useEffect(() => {
-    load();
+    runSwiftSync();
   }, []);
 
   const remove = async (id: string) => {
@@ -404,11 +436,19 @@ function ProductsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-muted-foreground">{items.length} products</p>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4 mr-1" /> New product
-        </Button>
+      <div className="flex flex-wrap justify-between items-center gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">{items.length} products</p>
+          {syncNote && <p className="text-xs text-muted-foreground mt-1">{syncNote}</p>}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => runSwiftSync()} disabled={syncing}>
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sync Swift IDs"}
+          </Button>
+          <Button onClick={() => setShowForm(true)}>
+            <Plus className="h-4 w-4 mr-1" /> New product
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -447,9 +487,15 @@ function ProductsTab() {
                         inactive
                       </span>
                     )}
+                    {p.type === "data" && !p.swift_package_id && (
+                      <span className="text-xs rounded-full px-2 py-0.5 bg-destructive/10 text-destructive">
+                        missing Swift ID
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
                     User {formatGHS(p.public_price)} · Agent Base {formatGHS(p.agent_price)}
+                    {p.type === "data" && p.swift_package_id ? ` · Swift: ${p.swift_package_id}` : ""}
                   </div>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => toggle(p.id, p.is_active)}>
@@ -533,16 +579,35 @@ function ProductForm({ product, onClose, onSaved }: { product?: any | null; onCl
 
     setSaving(true);
     setErr(null);
+    let savedProductId = product?.id as string | undefined;
     let error = null;
     if (product && product.id) {
       const res = await supabase.from("products").update(payload).eq("id", product.id);
       error = res.error;
     } else {
-      const res = await supabase.from("products").insert(payload);
+      const res = await supabase.from("products").insert(payload).select("id").single();
       error = res.error;
+      savedProductId = res.data?.id;
     }
+    if (error) {
+      setSaving(false);
+      return setErr(error.message);
+    }
+
+    if (f.type === "data" && savedProductId) {
+      try {
+        await syncSwiftPackageIds(savedProductId);
+      } catch (syncError) {
+        setSaving(false);
+        return setErr(
+          syncError instanceof Error
+            ? syncError.message
+            : "Product saved, but Swift package ID could not be assigned."
+        );
+      }
+    }
+
     setSaving(false);
-    if (error) return setErr(error.message);
     onSaved();
     onClose();
   };

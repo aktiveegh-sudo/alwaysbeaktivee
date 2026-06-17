@@ -1,5 +1,6 @@
 // Edge function: forward a data order to the Swift API for delivery and update order status.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resolveSwiftPackageId } from "../_shared/swift.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,7 +39,7 @@ Deno.serve(async (req) => {
     const { data: order, error: oErr } = await supabase
       .from("orders")
       .select(
-        "id, reference, recipient_phone, amount, status, notes, product_id, products(name, type, network, data_volume_mb, swift_package_id)"
+        "id, reference, recipient_phone, amount, status, notes, product_id, swift_order_id, swift_status, products(name, type, network, data_volume_mb, swift_package_id)"
       )
       .eq("id", order_id)
       .maybeSingle();
@@ -52,45 +53,49 @@ Deno.serve(async (req) => {
       return json({ success: true, skipped: true });
     }
 
-    // Idempotency: if order already submitted successfully to Swift, do not resend
-    // unless this is an explicit retry from admin.
-    if (!retry && (order as any).swift_order_id) {
+    if (!retry && order.swift_order_id) {
       return json({
         success: true,
         skipped: true,
         message: "Order already submitted to Swift",
-        swift_order_id: (order as any).swift_order_id,
-        swift_status: (order as any).swift_status,
+        swift_order_id: order.swift_order_id,
+        swift_status: order.swift_status,
       });
     }
 
-    const swiftPackageId = product.swift_package_id;
-    if (!swiftPackageId) {
+    const resolvedPackageId = await resolveSwiftPackageId(
+      product.swift_package_id,
+      product,
+      SWIFT_API_URL,
+      SWIFT_API_KEY
+    );
+
+    if (!resolvedPackageId) {
       await supabase
         .from("orders")
-        .update({ status: "failed", swift_status: "fulfillment_failed", notes: "Missing Swift package ID for product." })
+        .update({
+          status: "failed",
+          swift_status: "fulfillment_failed",
+          notes: "Unable to resolve Swift package ID for product.",
+        })
         .eq("id", order_id);
-      return json({ success: false, error: "Product missing Swift package ID." });
+      return json({ success: false, error: "Unable to resolve Swift package ID for product." });
+    }
+
+    if (order.product_id && product.swift_package_id !== resolvedPackageId) {
+      await supabase
+        .from("products")
+        .update({ swift_package_id: resolvedPackageId })
+        .eq("id", order.product_id);
     }
 
     let recipient = String(order.recipient_phone || "").replace(/\D/g, "");
     if (recipient.startsWith("233") && recipient.length === 12) recipient = "0" + recipient.slice(3);
     if (recipient.length === 9) recipient = "0" + recipient;
 
-    const resolvedPackageId = await resolveSwiftPackageId(swiftPackageId, product, SWIFT_API_URL, SWIFT_API_KEY);
-    if (!resolvedPackageId) {
-      await supabase
-        .from("orders")
-        .update({ status: "failed", swift_status: "fulfillment_failed", notes: "Unable to resolve Swift package ID for product." })
-        .eq("id", order_id);
-      return json({ success: false, error: "Unable to resolve Swift package ID for product." });
-    }
-
-    // For retries, append a suffix so Swift treats it as a new request_id / idempotency key
     const idemSuffix = retry ? `-r${Date.now()}` : "";
     const requestId = `${order.reference}${idemSuffix}`;
 
-    // Build payload matching SwiftData docs: package_id + phone (+ optional request_id)
     const payload = {
       package_id: resolvedPackageId,
       phone: recipient,
@@ -104,14 +109,12 @@ Deno.serve(async (req) => {
 
     const bodyStr = JSON.stringify(payload);
 
-    // Prepare headers: Authorization + Content-Type + Idempotency
     const headers: Record<string, string> = {
       Authorization: `Bearer ${SWIFT_API_KEY}`,
       "Content-Type": "application/json",
       "X-Idempotency-Key": requestId,
     };
 
-    // Optional HMAC signing: use SWIFT_SIGNING_KEY if available to compute X-Swift-Signature
     const SWIFT_SIGNING_KEY = Deno.env.get("SWIFT_SIGNING_KEY");
     if (SWIFT_SIGNING_KEY) {
       try {
@@ -127,8 +130,8 @@ Deno.serve(async (req) => {
         const sigArray = Array.from(new Uint8Array(sigBuf));
         const sigHex = sigArray.map((b) => b.toString(16).padStart(2, "0")).join("");
         headers["X-Swift-Signature"] = sigHex;
-      } catch (e) {
-        // signature failure should not block fulfillment; log via notes later
+      } catch {
+        // signature failure should not block fulfillment
       }
     }
 
@@ -173,67 +176,6 @@ Deno.serve(async (req) => {
     return json({ success: false, error: msg });
   }
 });
-
-async function fetchSwiftPlans(swiftApiUrl: string, apiKey: string) {
-  try {
-    const url = new URL(swiftApiUrl);
-    if (url.pathname.endsWith("/payment/data")) {
-      url.pathname = url.pathname.replace(/\/payment\/data$/, "/plans");
-    } else {
-      url.pathname = url.pathname.replace(/\/$/, "") + "/plans";
-    }
-
-    const response = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    });
-    const body = await response.json();
-    return Array.isArray(body?.plans) ? body.plans : [];
-  } catch {
-    return [];
-  }
-}
-
-function normalizePackageSize(dataVolumeMb: number | null) {
-  if (!dataVolumeMb) return null;
-  if (dataVolumeMb % 1024 === 0) return `${dataVolumeMb / 1024}GB`;
-  return `${dataVolumeMb}MB`;
-}
-
-function networkCandidates(network: string) {
-  const value = network?.toLowerCase();
-  // SwiftData network codes: YELLO = MTN, RED = Telecel, BLUE = AirtelTigo
-  if (value === "mtn") return ["YELLO", "MTN"];
-  if (value === "telecel") return ["RED", "TELECEL", "VODAFONE"];
-  if (value === "airteltigo") return ["BLUE", "AT", "AIRTELTIGO"];
-  return [];
-}
-
-async function resolveSwiftPackageId(
-  swiftPackageId: string,
-  product: any,
-  swiftApiUrl: string,
-  apiKey: string
-) {
-  const plans = await fetchSwiftPlans(swiftApiUrl, apiKey);
-  const networkOrder = networkCandidates(product.network);
-
-  // Exact match — but only trust it if the plan's network matches the product's network.
-  const exactMatch = plans.find((plan: any) => plan.package_id === swiftPackageId);
-  if (exactMatch && networkOrder.includes(exactMatch.network)) return swiftPackageId;
-
-  const packageSize = normalizePackageSize(product.data_volume_mb);
-  if (!packageSize) return null;
-
-  const candidates = plans.filter((plan: any) => plan.package_size === packageSize);
-  for (const network of networkOrder) {
-    const plan = candidates.find((candidate: any) => candidate.network === network);
-    if (plan) return plan.package_id;
-  }
-
-  return null;
-}
 
 function json(body: unknown) {
   return new Response(JSON.stringify(body), {
