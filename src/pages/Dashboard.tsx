@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatGHS, cn } from "@/lib/utils";
-import { initiatePaystackCheckout } from "@/lib/paystack";
+import { initiatePaystackCheckout, payOrderFromWallet } from "@/lib/paystack";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -937,24 +937,38 @@ function StatCard({
 function AgentBuyDialog({
   product,
   userId,
+  walletBalance,
   onClose,
+  onWalletPaid,
 }: {
   product: CheckerPricingItem;
   userId: string;
+  walletBalance: number;
   onClose: () => void;
+  onWalletPaid: (newBalance: number) => void;
 }) {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState<{ reference: string } | null>(null);
+  const [done, setDone] = useState<{ reference: string; method: "wallet" | "paystack" } | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [method, setMethod] = useState<"wallet" | "paystack">(
+    walletBalance >= Number(product.agent_price) ? "wallet" : "paystack"
+  );
+
+  const amount = Number(product.agent_price);
+  const insufficient = walletBalance < amount;
 
   const buyNow = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!/^0\d{9}$/.test(phone)) {
       setError("Enter a valid 10-digit Ghana phone number.");
+      return;
+    }
+    if (method === "wallet" && insufficient) {
+      setError("Insufficient wallet balance. Top up or pay via Paystack.");
       return;
     }
 
@@ -965,7 +979,7 @@ function AgentBuyDialog({
         product_id: product.id,
         recipient_phone: phone,
         recipient_email: email || null,
-        amount: Number(product.agent_price),
+        amount,
         agent_profit: 0,
         buyer_user_id: userId,
         store_owner_id: userId,
@@ -979,17 +993,26 @@ function AgentBuyDialog({
       return;
     }
 
+    if (method === "wallet") {
+      try {
+        await payOrderFromWallet(data.id);
+        onWalletPaid(Number((walletBalance - amount).toFixed(2)));
+        setSubmitting(false);
+        setDone({ reference: data.reference, method: "wallet" });
+      } catch (err) {
+        setSubmitting(false);
+        setError(err instanceof Error ? err.message : String(err));
+      }
+      return;
+    }
+
     try {
-      const callbackUrl = `${window.location.origin}/payment-result?order_reference=${encodeURIComponent(
-        data.reference
-      )}`;
+      const callbackUrl = `${window.location.origin}/payment-result?order_reference=${encodeURIComponent(data.reference)}`;
       const init = await initiatePaystackCheckout(data.id, callbackUrl);
       window.location.href = init.authorizationUrl;
-      return;
     } catch (initError) {
       setSubmitting(false);
       setError(initError instanceof Error ? initError.message : String(initError));
-      return;
     }
   };
 
@@ -1002,8 +1025,54 @@ function AgentBuyDialog({
               <h3 className="font-display text-2xl font-bold">Buy at Agent Price</h3>
               <p className="text-sm text-muted-foreground mt-1">{product.name}</p>
               <p className="mt-3 text-sm">
-                Amount to pay: <span className="font-bold text-primary">{formatGHS(Number(product.agent_price))}</span>
+                Amount: <span className="font-bold text-primary">{formatGHS(amount)}</span>
               </p>
+
+              <div className="mt-5">
+                <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Payment method</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setMethod("wallet")}
+                    className={cn(
+                      "rounded-xl border p-3 text-left transition",
+                      method === "wallet"
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:bg-secondary",
+                      insufficient && "opacity-60"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 font-semibold">
+                      <WalletIcon className="h-4 w-4" /> Wallet
+                    </div>
+                    <div className="text-xs mt-1 text-muted-foreground">
+                      Balance: <span className="font-semibold text-foreground">{formatGHS(walletBalance)}</span>
+                    </div>
+                    <div className="text-[11px] mt-1 text-success font-semibold">No transaction fees</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMethod("paystack")}
+                    className={cn(
+                      "rounded-xl border p-3 text-left transition",
+                      method === "paystack"
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:bg-secondary"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 font-semibold">
+                      <ShoppingCart className="h-4 w-4" /> Paystack
+                    </div>
+                    <div className="text-xs mt-1 text-muted-foreground">Card / Mobile Money</div>
+                    <div className="text-[11px] mt-1 text-muted-foreground">Standard Paystack fees apply</div>
+                  </button>
+                </div>
+                {method === "wallet" && insufficient && (
+                  <p className="text-xs text-destructive mt-2">
+                    Insufficient wallet balance to use this method.
+                  </p>
+                )}
+              </div>
 
               <form className="mt-5 space-y-3" onSubmit={buyNow}>
                 <Input placeholder="Recipient phone (e.g. 0241234567)" value={phone} onChange={(e) => setPhone(e.target.value)} required />
@@ -1011,8 +1080,14 @@ function AgentBuyDialog({
                 {error && <p className="text-sm text-destructive">{error}</p>}
                 <div className="flex gap-2 pt-2">
                   <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-                  <Button type="submit" className="flex-1" disabled={submitting}>
-                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buy now"}
+                  <Button type="submit" className="flex-1" disabled={submitting || (method === "wallet" && insufficient)}>
+                    {submitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : method === "wallet" ? (
+                      `Pay ${formatGHS(amount)} from wallet`
+                    ) : (
+                      `Pay ${formatGHS(amount)} with Paystack`
+                    )}
                   </Button>
                 </div>
               </form>
@@ -1020,7 +1095,7 @@ function AgentBuyDialog({
           ) : (
             <>
               <div className="inline-flex items-center gap-2 rounded-full bg-success/15 text-success px-3 py-1 text-xs font-semibold">
-                <CheckCircle2 className="h-4 w-4" /> Order Created
+                <CheckCircle2 className="h-4 w-4" /> {done.method === "wallet" ? "Paid from wallet" : "Order created"}
               </div>
               <h3 className="font-display text-2xl font-bold mt-3">Purchase submitted</h3>
               <p className="text-sm text-muted-foreground mt-1">Use this reference for tracking and support.</p>
