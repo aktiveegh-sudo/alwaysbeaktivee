@@ -57,3 +57,14 @@ export async function verifyPaystackOrder(orderReference: string) {
 
   return data;
 }
+
+export async function payOrderFromWallet(orderId: string) {
+  const { data, error } = await supabase.functions.invoke("wallet-purchase", {
+    body: { order_id: orderId },
+  });
+  if (error) throw error;
+  if (!data?.success) {
+    throw new Error(String(data?.error ?? "Wallet payment failed."));
+  }
+  return data;
+}
