@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .select("id, status, swift_order_id")
+      .select("id, status, swift_order_id, store_owner_id, buyer_user_id")
       .eq("reference", orderReference)
       .maybeSingle();
 
@@ -68,8 +68,25 @@ Deno.serve(async (req) => {
       return json({ success: false, error: orderError?.message || "Order not found." });
     }
 
+    // Resolve a store slug to redirect public buyers back to.
+    let storeSlug: string | null = null;
+    if (order.store_owner_id) {
+      const { data: store } = await supabase
+        .from("stores")
+        .select("slug")
+        .eq("user_id", order.store_owner_id)
+        .maybeSingle();
+      storeSlug = store?.slug ?? null;
+    }
+
     if (order.status === "delivered") {
-      return json({ success: true, message: "Order already delivered." });
+      return json({
+        success: true,
+        message: "Order already delivered.",
+        order_reference: orderReference,
+        store_slug: storeSlug,
+        buyer_user_id: order.buyer_user_id,
+      });
     }
 
     // If we already submitted to Swift, do not resend — just acknowledge.
@@ -79,6 +96,8 @@ Deno.serve(async (req) => {
         message: "Order already submitted to Swift.",
         order_reference: orderReference,
         swift_order_id: order.swift_order_id,
+        store_slug: storeSlug,
+        buyer_user_id: order.buyer_user_id,
       });
     }
 
@@ -118,6 +137,8 @@ Deno.serve(async (req) => {
         success: false,
         error: `Fulfillment service returned no JSON (status ${purchaseHttpStatus}).`,
         raw: purchaseRaw.slice(0, 500),
+        store_slug: storeSlug,
+        buyer_user_id: order.buyer_user_id,
       });
     }
 
@@ -126,6 +147,8 @@ Deno.serve(async (req) => {
         success: false,
         error: purchaseResult.error || "Order was verified but fulfillment failed.",
         details: purchaseResult,
+        store_slug: storeSlug,
+        buyer_user_id: order.buyer_user_id,
       });
     }
 
@@ -134,6 +157,8 @@ Deno.serve(async (req) => {
       message: "Payment verified and order processing started.",
       order_reference: orderReference,
       purchase: purchaseResult,
+      store_slug: storeSlug,
+      buyer_user_id: order.buyer_user_id,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
