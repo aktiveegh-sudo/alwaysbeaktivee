@@ -634,6 +634,7 @@ export type Database = {
           status: Database["public"]["Enums"]["order_status"]
         }[]
       }
+      wallet_pay_for_order: { Args: { _order_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "agent" | "subagent" | "customer"
