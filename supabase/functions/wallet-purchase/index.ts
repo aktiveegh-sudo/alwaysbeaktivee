@@ -60,11 +60,22 @@ Deno.serve(async (req) => {
         .eq("id", orderId)
         .maybeSingle();
       if (order?.buyer_user_id) {
-        await admin.rpc("admin_credit_wallet", {
-          _user_id: order.buyer_user_id,
-          _amount: Number(order.amount),
-          _description: `Refund: fulfillment failed for ${order.reference}`,
-        }).catch(() => null);
+        const { data: w } = await admin
+          .from("wallets")
+          .select("balance")
+          .eq("user_id", order.buyer_user_id)
+          .maybeSingle();
+        const newBalance = Number(w?.balance || 0) + Number(order.amount);
+        await admin
+          .from("wallets")
+          .update({ balance: newBalance, updated_at: new Date().toISOString() })
+          .eq("user_id", order.buyer_user_id);
+        await admin.from("wallet_transactions").insert({
+          user_id: order.buyer_user_id,
+          amount: Number(order.amount),
+          type: "refund",
+          description: `Refund: fulfillment failed for ${order.reference}`,
+        });
       }
       return json({
         success: false,
