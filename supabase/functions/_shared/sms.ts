@@ -3,7 +3,7 @@
 // Endpoint: POST https://api.txtconnect.net/dev/api/sms/send
 
 const TXTCONNECT_URL = "https://api.txtconnect.net/dev/api/sms/send";
-export const DEFAULT_SENDER_ID = "AKTIVE GHANA";
+export const DEFAULT_SENDER_ID = "AKTIVE DATA";
 
 export type SmsResult = {
   success: boolean;
@@ -38,7 +38,7 @@ export async function sendSms(opts: {
   const payload = {
     to,
     from: opts.from || DEFAULT_SENDER_ID,
-    unicode: "regular",
+    unicode: false,
     sms: opts.message,
   };
 
@@ -86,5 +86,5 @@ export function buildPurchaseSmsMessage(opts: {
       ? `${(opts.dataVolumeMb / 1000).toFixed(opts.dataVolumeMb % 1000 === 0 ? 0 : 2)}GB`
       : (opts.productName || "your data bundle");
   const ref = opts.reference ? ` (Ref: ${opts.reference})` : "";
-  return `Hello! Your order of ${gb} is being processed and will arrive shortly${ref}. Thank you for buying from AKTIVE GHANA.`;
+  return `Hello! Your order of ${gb} is being processed and will arrive shortly${ref}. Thank you for buying from AKTIVE DATA.`;
 }
