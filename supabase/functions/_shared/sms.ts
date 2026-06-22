@@ -86,5 +86,5 @@ export function buildPurchaseSmsMessage(opts: {
       ? `${(opts.dataVolumeMb / 1000).toFixed(opts.dataVolumeMb % 1000 === 0 ? 0 : 2)}GB`
       : (opts.productName || "your data bundle");
   const ref = opts.reference ? ` (Ref: ${opts.reference})` : "";
-  return `Hello! Your order of ${gb} is being processed and will arrive shortly${ref}. Thank you for buying from AKTIVE GHANA.`;
+  return `Hello! Your order of ${gb} is being processed and will arrive shortly${ref}. Thank you for buying from AKTIVE DATA.`;
 }
