@@ -14,3 +14,7 @@ verify_jwt = false
 
 [functions.wallet-purchase]
 verify_jwt = false
+
+[functions.sms-test]
+verify_jwt = false
+
