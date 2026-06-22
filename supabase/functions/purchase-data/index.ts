@@ -5,6 +5,7 @@ import {
   getSwiftFulfillmentBlockReason,
   resolveSwiftPackageId,
 } from "../_shared/swift.ts";
+import { sendSms, buildPurchaseSmsMessage } from "../_shared/sms.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -188,7 +189,23 @@ Deno.serve(async (req) => {
       })
       .eq("id", order_id);
 
-    return json({ success: true, provider: resultBody });
+    // Fire-and-log SMS confirmation to the recipient. Failures must not block fulfillment.
+    let smsResult: any = null;
+    try {
+      const message = buildPurchaseSmsMessage({
+        productName: product?.name,
+        dataVolumeMb: product?.data_volume_mb,
+        reference: order.reference,
+      });
+      smsResult = await sendSms({ to: order.recipient_phone, message });
+      if (!smsResult.success) {
+        console.warn("SMS send failed:", smsResult.error, smsResult.body);
+      }
+    } catch (smsErr) {
+      console.warn("SMS send threw:", smsErr);
+    }
+
+    return json({ success: true, provider: resultBody, sms: smsResult });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return json({ success: false, error: msg });
