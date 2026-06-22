@@ -3,7 +3,7 @@
 // Endpoint: POST https://api.txtconnect.net/dev/api/sms/send
 
 const TXTCONNECT_URL = "https://api.txtconnect.net/dev/api/sms/send";
-export const DEFAULT_SENDER_ID = "AKTIVE GHANA";
+export const DEFAULT_SENDER_ID = "AKTIVE DATA";
 
 export type SmsResult = {
   success: boolean;
