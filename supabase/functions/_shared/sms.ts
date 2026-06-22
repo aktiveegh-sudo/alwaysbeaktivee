@@ -38,7 +38,7 @@ export async function sendSms(opts: {
   const payload = {
     to,
     from: opts.from || DEFAULT_SENDER_ID,
-    unicode: "regular",
+    unicode: false,
     sms: opts.message,
   };
 
