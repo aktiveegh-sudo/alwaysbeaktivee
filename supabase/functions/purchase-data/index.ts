@@ -1,10 +1,5 @@
-// Edge function: forward a data order to the Swift API for delivery and update order status.
+// Edge function: forward a data order to the SwiftData Reseller API for delivery.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import {
-  formatSwiftError,
-  getSwiftFulfillmentBlockReason,
-  resolveSwiftPackageId,
-} from "../_shared/swift.ts";
 import { sendSms, buildPurchaseSmsMessage } from "../_shared/sms.ts";
 
 const corsHeaders = {
@@ -12,15 +7,42 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const RESELLER_BASE_URL =
+  Deno.env.get("SWIFT_RESELLER_BASE_URL") ||
+  "https://ihrvvniomtoofrjkmalb.supabase.co/functions/v1/api/v1";
+
+function mapNetwork(network: string | undefined | null): string | null {
+  const n = (network || "").toLowerCase();
+  if (n === "mtn" || n === "yello") return "yello";
+  if (n === "telecel" || n === "vodafone") return "telecel";
+  if (n === "airteltigo" || n === "at" || n === "at_ishare") return "at_ishare";
+  if (n === "at_bigtime") return "at_bigtime";
+  return null;
+}
+
+function toSizeGb(dataVolumeMb: number | null | undefined): number | null {
+  if (!dataVolumeMb || dataVolumeMb <= 0) return null;
+  const gb = dataVolumeMb / 1024;
+  // Only whole-GB packages are supported by the reseller
+  if (!Number.isFinite(gb)) return null;
+  const rounded = Math.round(gb * 100) / 100;
+  return rounded;
+}
+
+function normalizePhone(raw: string): string {
+  let p = String(raw || "").replace(/\D/g, "");
+  if (p.startsWith("233") && p.length === 12) p = "0" + p.slice(3);
+  if (p.length === 9) p = "0" + p;
+  return p;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const SWIFT_API_URL = Deno.env.get("SWIFT_API_URL") || "https://lsocdjpflecduumopijn.supabase.co/functions/v1/developer-api/payment/data";
-    const SWIFT_API_KEY = Deno.env.get("SWIFT_API_KEY");
-
-    if (!SWIFT_API_KEY) {
-      return json({ success: false, error: "Missing SWIFT_API_KEY environment variable." });
+    const API_KEY = Deno.env.get("SWIFT_RESELLER_API_KEY");
+    if (!API_KEY) {
+      return json({ success: false, error: "Missing SWIFT_RESELLER_API_KEY environment variable." });
     }
 
     const rawReq = await req.text();
@@ -32,9 +54,7 @@ Deno.serve(async (req) => {
     }
     const order_id = reqBody?.order_id;
     const retry = Boolean(reqBody?.retry);
-    if (!order_id) {
-      return json({ success: false, error: "order_id required" });
-    }
+    if (!order_id) return json({ success: false, error: "order_id required" });
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -44,7 +64,7 @@ Deno.serve(async (req) => {
     const { data: order, error: oErr } = await supabase
       .from("orders")
       .select(
-        "id, reference, recipient_phone, amount, status, notes, product_id, swift_order_id, swift_status, products(name, type, network, data_volume_mb, swift_package_id)"
+        "id, reference, recipient_phone, amount, status, notes, product_id, swift_order_id, swift_status, products(name, type, network, data_volume_mb)"
       )
       .eq("id", order_id)
       .maybeSingle();
@@ -62,134 +82,88 @@ Deno.serve(async (req) => {
       return json({
         success: true,
         skipped: true,
-        message: "Order already submitted to Swift",
+        message: "Order already submitted",
         swift_order_id: order.swift_order_id,
         swift_status: order.swift_status,
       });
     }
 
-    const fulfillmentBlock = await getSwiftFulfillmentBlockReason(SWIFT_API_URL, SWIFT_API_KEY);
-    if (fulfillmentBlock) {
-      await supabase
-        .from("orders")
-        .update({
-          status: "failed",
-          swift_status: "fulfillment_failed",
-          notes: fulfillmentBlock,
-        })
-        .eq("id", order_id);
-      return json({ success: false, error: fulfillmentBlock });
+    const network = mapNetwork(product.network);
+    const size_gb = toSizeGb(product.data_volume_mb);
+    const phone = normalizePhone(order.recipient_phone);
+
+    if (!network) {
+      await supabase.from("orders").update({
+        status: "failed",
+        swift_status: "fulfillment_failed",
+        notes: `Unsupported network: ${product.network}`,
+      }).eq("id", order_id);
+      return json({ success: false, error: `Unsupported network: ${product.network}` });
     }
-
-    const resolvedPackageId = await resolveSwiftPackageId(
-      product.swift_package_id,
-      product,
-      SWIFT_API_URL,
-      SWIFT_API_KEY
-    );
-
-    if (!resolvedPackageId) {
-      await supabase
-        .from("orders")
-        .update({
-          status: "failed",
-          swift_status: "fulfillment_failed",
-          notes: "Unable to resolve Swift package ID for product.",
-        })
-        .eq("id", order_id);
-      return json({ success: false, error: "Unable to resolve Swift package ID for product." });
+    if (!size_gb) {
+      await supabase.from("orders").update({
+        status: "failed",
+        swift_status: "fulfillment_failed",
+        notes: `Unsupported data size (${product.data_volume_mb} MB)`,
+      }).eq("id", order_id);
+      return json({ success: false, error: `Unsupported data size: ${product.data_volume_mb} MB` });
     }
-
-    if (order.product_id && product.swift_package_id !== resolvedPackageId) {
-      await supabase
-        .from("products")
-        .update({ swift_package_id: resolvedPackageId })
-        .eq("id", order.product_id);
-    }
-
-    let recipient = String(order.recipient_phone || "").replace(/\D/g, "");
-    if (recipient.startsWith("233") && recipient.length === 12) recipient = "0" + recipient.slice(3);
-    if (recipient.length === 9) recipient = "0" + recipient;
 
     const idemSuffix = retry ? `-r${Date.now()}` : "";
-    const requestId = `${order.reference}${idemSuffix}`;
+    const reference = `${order.reference}${idemSuffix}`;
 
-    const payload = {
-      package_id: resolvedPackageId,
-      phone: recipient,
-      request_id: requestId,
-      metadata: {
-        order_id,
-        product_id: order.product_id,
-        product_name: product.name,
-      },
-    };
+    const payload = { phone, network, size_gb, reference };
 
-    const bodyStr = JSON.stringify(payload);
-
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${SWIFT_API_KEY}`,
-      "Content-Type": "application/json",
-      "X-Idempotency-Key": requestId,
-    };
-
-    const SWIFT_SIGNING_KEY = Deno.env.get("SWIFT_SIGNING_KEY");
-    if (SWIFT_SIGNING_KEY) {
-      try {
-        const enc = new TextEncoder();
-        const key = await crypto.subtle.importKey(
-          "raw",
-          enc.encode(SWIFT_SIGNING_KEY),
-          { name: "HMAC", hash: "SHA-256" },
-          false,
-          ["sign"]
-        );
-        const sigBuf = await crypto.subtle.sign("HMAC", key, enc.encode(bodyStr));
-        const sigArray = Array.from(new Uint8Array(sigBuf));
-        const sigHex = sigArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-        headers["X-Swift-Signature"] = sigHex;
-      } catch {
-        // signature failure should not block fulfillment
-      }
+    let resp: Response;
+    try {
+      resp = await fetch(`${RESELLER_BASE_URL}/buy-data`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (fetchErr) {
+      const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      await supabase.from("orders").update({
+        status: "failed",
+        swift_status: "fulfillment_failed",
+        notes: `Network error contacting provider: ${msg}`,
+      }).eq("id", order_id);
+      return json({ success: false, error: `Provider unreachable: ${msg}` });
     }
-
-    const resp = await fetch(SWIFT_API_URL, {
-      method: "POST",
-      headers,
-      body: bodyStr,
-    });
 
     const respText = await resp.text();
-    let resultBody: any = null;
-    try {
-      resultBody = respText ? JSON.parse(respText) : null;
-    } catch {
-      resultBody = null;
-    }
-    if (!resp.ok || !resultBody || !resultBody.success) {
-      const rawErr = resultBody?.message || resultBody?.error || `Swift API error ${resp.status}: ${respText.slice(0, 200)}`;
-      const errMsg = formatSwiftError(rawErr);
-      await supabase
-        .from("orders")
-        .update({ status: "failed", swift_status: "fulfillment_failed", notes: `Swift error: ${errMsg}` })
-        .eq("id", order_id);
-      return json({ success: false, error: errMsg, provider: resultBody, raw: respText.slice(0, 500) });
+    let body: any = null;
+    try { body = respText ? JSON.parse(respText) : null; } catch { body = null; }
+
+    if (!resp.ok || !body?.success) {
+      const rawErr = body?.error || body?.message || `Provider error ${resp.status}: ${respText.slice(0, 200)}`;
+      await supabase.from("orders").update({
+        status: "failed",
+        swift_status: "fulfillment_failed",
+        notes: `Provider error: ${rawErr}`,
+      }).eq("id", order_id);
+      return json({ success: false, error: rawErr, provider: body, raw: respText.slice(0, 500) });
     }
 
-    const swiftOrderId = resultBody?.order_id || resultBody?.data?.id || resultBody?.data?.order_id || null;
-    const swiftStatus = resultBody?.status || resultBody?.data?.status || "processing";
+    const providerOrder = body.order || {};
+    const providerRef = providerOrder.reference || reference;
+    const providerStatus = providerOrder.status || "processing";
+    const finalStatus = providerStatus === "completed" ? "delivered" : (providerStatus === "failed" ? "failed" : "processing");
 
     await supabase
       .from("orders")
       .update({
-        status: "processing",
-        swift_order_id: swiftOrderId,
-        swift_status: swiftStatus,
-        notes: swiftOrderId ? `Swift order id: ${swiftOrderId}` : "Submitted to Swift API",
+        status: finalStatus,
+        swift_order_id: providerRef,
+        swift_status: providerStatus,
+        notes: `Provider ref: ${providerRef}`,
       })
       .eq("id", order_id);
 
-    // Fire-and-log SMS confirmation to the recipient. Failures must not block fulfillment.
+    // Send SMS confirmation (non-blocking on failure)
     let smsResult: any = null;
     try {
       const message = buildPurchaseSmsMessage({
@@ -198,14 +172,12 @@ Deno.serve(async (req) => {
         reference: order.reference,
       });
       smsResult = await sendSms({ to: order.recipient_phone, message });
-      if (!smsResult.success) {
-        console.warn("SMS send failed:", smsResult.error, smsResult.body);
-      }
+      if (!smsResult.success) console.warn("SMS send failed:", smsResult.error);
     } catch (smsErr) {
       console.warn("SMS send threw:", smsErr);
     }
 
-    return json({ success: true, provider: resultBody, sms: smsResult });
+    return json({ success: true, provider: body, sms: smsResult });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return json({ success: false, error: msg });
