@@ -138,6 +138,25 @@ Deno.serve(async (req) => {
     let body: any = null;
     try { body = respText ? JSON.parse(respText) : null; } catch { body = null; }
 
+    // Auto-retry with a suffixed reference if the provider says the reference already exists.
+    if ((!resp.ok || !body?.success) && /reference.*already.*exist/i.test(String(body?.error || body?.message || respText))) {
+      const retryRef = `${order.reference}-r${Date.now()}`;
+      try {
+        const retryResp = await fetch(`${RESELLER_BASE_URL}/buy-data`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ...payload, reference: retryRef }),
+        });
+        const retryText = await retryResp.text();
+        let retryBody: any = null;
+        try { retryBody = retryText ? JSON.parse(retryText) : null; } catch { retryBody = null; }
+        if (retryResp.ok && retryBody?.success) {
+          resp = retryResp;
+          body = retryBody;
+        }
+      } catch (_) { /* fall through to error path */ }
+    }
+
     if (!resp.ok || !body?.success) {
       const rawErr = body?.error || body?.message || `Provider error ${resp.status}: ${respText.slice(0, 200)}`;
       await supabase.from("orders").update({
@@ -149,11 +168,11 @@ Deno.serve(async (req) => {
     }
 
     const providerOrder = body.order || {};
-    const providerRef = providerOrder.reference || reference;
+    const providerRef = String(providerOrder.reference || providerOrder.id || reference);
     const providerStatus = providerOrder.status || "processing";
     const finalStatus = providerStatus === "completed" ? "delivered" : (providerStatus === "failed" ? "failed" : "processing");
 
-    await supabase
+    const { error: updErr } = await supabase
       .from("orders")
       .update({
         status: finalStatus,
@@ -162,6 +181,14 @@ Deno.serve(async (req) => {
         notes: `Provider ref: ${providerRef}`,
       })
       .eq("id", order_id);
+    if (updErr) console.error("Failed to persist order update:", updErr);
+
+    // Credit agent profit when delivered.
+    let profitResult: any = null;
+    if (finalStatus === "delivered") {
+      const { data: cp, error: cpErr } = await supabase.rpc("credit_agent_profit", { _order_id: order_id });
+      profitResult = cpErr ? { error: cpErr.message } : cp;
+    }
 
     // Send SMS confirmation (non-blocking on failure)
     let smsResult: any = null;
@@ -177,7 +204,7 @@ Deno.serve(async (req) => {
       console.warn("SMS send threw:", smsErr);
     }
 
-    return json({ success: true, provider: body, sms: smsResult });
+    return json({ success: true, provider: body, sms: smsResult, profit: profitResult });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return json({ success: false, error: msg });

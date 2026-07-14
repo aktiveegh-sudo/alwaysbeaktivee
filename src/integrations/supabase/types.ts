@@ -616,6 +616,7 @@ export type Database = {
         Returns: undefined
       }
       claim_first_admin: { Args: never; Returns: boolean }
+      credit_agent_profit: { Args: { _order_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
