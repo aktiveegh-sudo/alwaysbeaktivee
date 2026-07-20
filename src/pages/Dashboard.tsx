@@ -499,11 +499,91 @@ export default function Dashboard() {
             </Card>
           )}
 
-          <div className="grid sm:grid-cols-3 gap-4">
-            <StatCard icon={WalletIcon} label="Wallet balance" value={formatGHS(wallet?.balance || 0)} accent="text-gold" />
-            <StatCard icon={ArrowUpRight} label="Total earned" value={formatGHS(wallet?.total_earned || 0)} accent="text-success" />
-            <StatCard icon={Users} label="Orders" value={String(orderCount)} accent="text-primary" />
-          </div>
+          {(() => {
+            const profitOrders = storeOrders.filter((o) => Number(o.agent_profit || 0) > 0);
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+            const totalProfits = profitOrders
+              .filter((o) => o.status === "delivered")
+              .reduce((sum, o) => sum + Number(o.agent_profit || 0), 0);
+            const todayProfits = profitOrders
+              .filter((o) => o.status === "delivered" && new Date(o.created_at) >= startOfToday)
+              .reduce((sum, o) => sum + Number(o.agent_profit || 0), 0);
+            const recentProfits = profitOrders.slice(0, 8);
+            return (
+              <>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <StatCard icon={WalletIcon} label="Wallet balance" value={formatGHS(wallet?.balance || 0)} accent="text-gold" />
+                  <StatCard icon={TrendingUp} label="Total profits" value={formatGHS(totalProfits)} accent="text-success" />
+                  <StatCard icon={CalendarDays} label="Today's profits" value={formatGHS(todayProfits)} accent="text-primary" />
+                  <StatCard icon={Users} label="Orders" value={String(orderCount)} accent="text-foreground" />
+                </div>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <Coins className="h-5 w-5 text-gold" />
+                        <h2 className="font-display text-xl font-bold">Recent profit transactions</h2>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => setTab("orders")}>View all orders</Button>
+                    </div>
+                    {recentProfits.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-8 text-center">
+                        No profit transactions yet. Sales from your store will appear here.
+                      </p>
+                    ) : (
+                      <div className="divide-y">
+                        {recentProfits.map((o) => {
+                          const badgeClass = ORDER_STATUS_COLOR[o.status];
+                          const statusLabel =
+                            o.status === "delivered"
+                              ? "Credited"
+                              : o.status === "processing"
+                              ? "Pending"
+                              : o.status === "failed"
+                              ? "Not credited"
+                              : "Refunded";
+                          return (
+                            <div key={o.id} className="flex items-center justify-between gap-3 py-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold/15 text-gold">
+                                  <Coins className="h-4 w-4" />
+                                </span>
+                                <div className="min-w-0">
+                                  <div className="font-medium text-sm truncate">
+                                    {o.products?.name || "Store sale"}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground truncate">
+                                    <span className="font-mono">{o.reference}</span> ·{" "}
+                                    {new Date(o.created_at).toLocaleString()}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <span className={cn("text-xs font-semibold px-2 py-1 rounded-full capitalize", badgeClass)}>
+                                  {statusLabel}
+                                </span>
+                                <div
+                                  className={cn(
+                                    "font-bold tabular-nums",
+                                    o.status === "delivered" ? "text-success" : "text-muted-foreground"
+                                  )}
+                                >
+                                  {o.status === "delivered" ? "+" : ""}
+                                  {formatGHS(Number(o.agent_profit || 0))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            );
+          })()}
 
           <div className="grid lg:grid-cols-3 gap-4">
             <Card className="lg:col-span-2">
