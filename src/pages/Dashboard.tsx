@@ -10,7 +10,9 @@ import { initiatePaystackCheckout, payOrderFromWallet } from "@/lib/paystack";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  CalendarDays,
   CheckCircle2,
+  Coins,
   Copy,
   ExternalLink,
   LayoutGrid,
@@ -20,6 +22,7 @@ import {
   Settings,
   ShoppingCart,
   Store as StoreIcon,
+  TrendingUp,
   Users,
   Wallet as WalletIcon,
 } from "lucide-react";
