@@ -109,6 +109,47 @@ Deno.serve(async (req) => {
       return json({ success: false, error: `Unsupported data size: ${product.data_volume_mb} MB` });
     }
 
+    // 5-minute cooldown per recipient phone (skip on retry of same order)
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from("orders")
+      .select("id, reference, created_at, status, swift_order_id")
+      .eq("recipient_phone", order.recipient_phone)
+      .neq("id", order_id)
+      .gte("created_at", fiveMinAgo)
+      .not("swift_order_id", "is", null)
+      .in("status", ["processing", "delivered"])
+      .limit(1);
+    if (recent && recent.length > 0) {
+      const prev = recent[0] as any;
+      const secsAgo = Math.floor((Date.now() - new Date(prev.created_at).getTime()) / 1000);
+      const waitSecs = Math.max(0, 300 - secsAgo);
+      const mins = Math.ceil(waitSecs / 60);
+      await supabase.from("orders").update({
+        status: "failed",
+        swift_status: "cooldown_blocked",
+        notes: `Cooldown: previous order ${prev.reference} to same number ${secsAgo}s ago`,
+      }).eq("id", order_id);
+      return json({
+        success: false,
+        error: `Please wait ${mins} minute${mins === 1 ? "" : "s"} before ordering to ${order.recipient_phone} again. Another order was just placed.`,
+        cooldown: true,
+        wait_seconds: waitSecs,
+      });
+    }
+
+    // Idempotency: guard against concurrent invocations for the same order
+    if (!retry) {
+      const { data: fresh } = await supabase
+        .from("orders")
+        .select("swift_order_id")
+        .eq("id", order_id)
+        .maybeSingle();
+      if (fresh?.swift_order_id) {
+        return json({ success: true, skipped: true, message: "Order already submitted", swift_order_id: fresh.swift_order_id });
+      }
+    }
+
     const idemSuffix = retry ? `-r${Date.now()}` : "";
     const reference = `${order.reference}${idemSuffix}`;
 
