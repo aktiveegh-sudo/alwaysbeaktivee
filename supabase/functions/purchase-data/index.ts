@@ -143,10 +143,10 @@ Deno.serve(async (req) => {
     if (!retry) {
       const { data: claimed, error: claimErr } = await supabase
         .from("orders")
-        .update({ swift_status: "submitting" })
+        .update({ swift_status: "processing" })
         .eq("id", order_id)
         .is("swift_order_id", null)
-        .or("swift_status.is.null,swift_status.eq.pending,swift_status.eq.fulfillment_failed,swift_status.eq.cooldown_blocked")
+        .or("swift_status.is.null,swift_status.eq.pending,swift_status.eq.fulfillment_failed")
         .select("id");
       if (claimErr) {
         return json({ success: false, error: `Claim failed: ${claimErr.message}` });
