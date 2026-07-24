@@ -18,6 +18,8 @@ export default function PaymentResult() {
   const [redirectTo, setRedirectTo] = useState<string>("/");
   const [countdown, setCountdown] = useState(REDIRECT_SECONDS);
 
+  const verifiedRef = useRef<string | null>(null);
+
   useEffect(() => {
     const value =
       searchParams.get("order_reference") ||
@@ -28,6 +30,9 @@ export default function PaymentResult() {
       setMessage("Missing order reference. Unable to verify payment.");
       return;
     }
+    // Guard against React StrictMode double-invoke and re-runs when `user` resolves.
+    if (verifiedRef.current === value) return;
+    verifiedRef.current = value;
     setOrderReference(value);
 
     (async () => {
@@ -35,8 +40,6 @@ export default function PaymentResult() {
         const result = await verifyPaystackOrder(value);
         const slug: string | null = result?.store_slug || null;
         const buyerId: string | null = result?.buyer_user_id || null;
-        // If buyer is the signed-in user (agent buying), send them to their dashboard.
-        // Otherwise (public store buyer), send them back to the store front.
         if (user && buyerId && buyerId === user.id) {
           setRedirectTo("/dashboard");
         } else if (slug) {
