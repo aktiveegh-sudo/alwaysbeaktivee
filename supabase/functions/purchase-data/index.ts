@@ -138,15 +138,32 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Idempotency: guard against concurrent invocations for the same order
+    // Atomic idempotency claim: only proceed if we can flip swift_status to 'submitting'
+    // for a row that has no swift_order_id yet. Concurrent callers match 0 rows and bail.
     if (!retry) {
-      const { data: fresh } = await supabase
+      const { data: claimed, error: claimErr } = await supabase
         .from("orders")
-        .select("swift_order_id")
+        .update({ swift_status: "submitting" })
         .eq("id", order_id)
-        .maybeSingle();
-      if (fresh?.swift_order_id) {
-        return json({ success: true, skipped: true, message: "Order already submitted", swift_order_id: fresh.swift_order_id });
+        .is("swift_order_id", null)
+        .or("swift_status.is.null,swift_status.eq.fulfillment_failed,swift_status.eq.cooldown_blocked")
+        .select("id");
+      if (claimErr) {
+        return json({ success: false, error: `Claim failed: ${claimErr.message}` });
+      }
+      if (!claimed || claimed.length === 0) {
+        const { data: fresh } = await supabase
+          .from("orders")
+          .select("swift_order_id, swift_status")
+          .eq("id", order_id)
+          .maybeSingle();
+        return json({
+          success: true,
+          skipped: true,
+          message: "Order already being processed",
+          swift_order_id: fresh?.swift_order_id ?? null,
+          swift_status: fresh?.swift_status ?? null,
+        });
       }
     }
 
