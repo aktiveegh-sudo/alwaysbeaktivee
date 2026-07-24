@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
         .update({ swift_status: "submitting" })
         .eq("id", order_id)
         .is("swift_order_id", null)
-        .or("swift_status.is.null,swift_status.eq.fulfillment_failed,swift_status.eq.cooldown_blocked")
+        .or("swift_status.is.null,swift_status.eq.pending,swift_status.eq.fulfillment_failed,swift_status.eq.cooldown_blocked")
         .select("id");
       if (claimErr) {
         return json({ success: false, error: `Claim failed: ${claimErr.message}` });
