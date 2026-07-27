@@ -598,25 +598,20 @@ export default function Dashboard() {
                     ) : (
                       <div className="divide-y">
                         {recentProfits.map((o) => {
-                          const badgeClass = ORDER_STATUS_COLOR[o.status];
-                          const statusLabel =
-                            o.status === "delivered"
-                              ? "Credited"
-                              : o.status === "processing"
-                              ? "Pending"
-                              : o.status === "failed"
-                              ? "Not credited"
-                              : "Refunded";
+                          const badgeClass = o.credited
+                            ? ORDER_STATUS_COLOR.delivered
+                            : o.label === "Not credited"
+                            ? ORDER_STATUS_COLOR.failed
+                            : ORDER_STATUS_COLOR.processing;
+                          const statusLabel = o.label;
                           return (
-                            <div key={o.id} className="flex items-center justify-between gap-3 py-3">
+                            <div key={o.key} className="flex items-center justify-between gap-3 py-3">
                               <div className="flex items-center gap-3 min-w-0">
                                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold/15 text-gold">
                                   <Coins className="h-4 w-4" />
                                 </span>
                                 <div className="min-w-0">
-                                  <div className="font-medium text-sm truncate">
-                                    {o.products?.name || "Store sale"}
-                                  </div>
+                                  <div className="font-medium text-sm truncate">{o.title}</div>
                                   <div className="text-xs text-muted-foreground truncate">
                                     <span className="font-mono">{o.reference}</span> ·{" "}
                                     {new Date(o.created_at).toLocaleString()}
@@ -630,11 +625,11 @@ export default function Dashboard() {
                                 <div
                                   className={cn(
                                     "font-bold tabular-nums",
-                                    o.status === "delivered" ? "text-success" : "text-muted-foreground"
+                                    o.credited ? "text-success" : "text-muted-foreground"
                                   )}
                                 >
-                                  {o.status === "delivered" ? "+" : ""}
-                                  {formatGHS(Number(o.agent_profit || 0))}
+                                  {o.credited ? "+" : ""}
+                                  {formatGHS(o.amount)}
                                 </div>
                               </div>
                             </div>
