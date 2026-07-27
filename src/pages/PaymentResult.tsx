@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { verifyPaystackOrder } from "@/lib/paystack";
+import { verifyAgentActivation, verifyPaystackOrder } from "@/lib/paystack";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,6 +37,13 @@ export default function PaymentResult() {
 
     (async () => {
       try {
+        if (value.startsWith("ACT-")) {
+          const activation = await verifyAgentActivation(value);
+          setRedirectTo("/dashboard");
+          setStatus("success");
+          setMessage(activation?.message || "Your agent account is now active.");
+          return;
+        }
         const result = await verifyPaystackOrder(value);
         const slug: string | null = result?.store_slug || null;
         const buyerId: string | null = result?.buyer_user_id || null;
