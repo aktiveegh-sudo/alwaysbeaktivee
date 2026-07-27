@@ -93,3 +93,43 @@ export async function payOrderFromWallet(orderId: string) {
   }
   return data;
 }
+
+export async function initiateAgentActivation(returnUrl: string) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) throw new Error("You must be signed in to activate your agent account.");
+
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agent-activation`;
+  const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: anon,
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ action: "init", return_url: returnUrl }),
+  });
+  const text = await resp.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!data?.success) throw new Error(String(data?.error ?? "Could not start activation payment."));
+  return data as { authorization_url: string; reference: string; amount: number };
+}
+
+export async function verifyAgentActivation(reference: string) {
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agent-activation`;
+  const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: anon,
+      Authorization: `Bearer ${anon}`,
+    },
+    body: JSON.stringify({ action: "verify", reference }),
+  });
+  const text = await resp.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!data?.success) throw new Error(String(data?.error ?? "Activation verification failed."));
+  return data;
+}
