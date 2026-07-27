@@ -589,6 +589,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activate_agent: { Args: { _user_id: string }; Returns: undefined }
       admin_credit_wallet: {
         Args: { _amount: number; _description?: string; _user_id: string }
         Returns: undefined
