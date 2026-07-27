@@ -18,3 +18,7 @@ verify_jwt = false
 [functions.sms-test]
 verify_jwt = false
 
+[functions.agent-activation]
+verify_jwt = false
+
+
