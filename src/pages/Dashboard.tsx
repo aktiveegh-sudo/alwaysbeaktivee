@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatGHS, cn } from "@/lib/utils";
-import { initiatePaystackCheckout, payOrderFromWallet } from "@/lib/paystack";
+import { initiateAgentActivation, initiatePaystackCheckout, payOrderFromWallet } from "@/lib/paystack";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -133,6 +133,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   const [minWithdrawal, setMinWithdrawal] = useState(50);
+  const [signupFee, setSignupFee] = useState<number | null>(null);
+  const [activationBusy, setActivationBusy] = useState(false);
+  const [activationErr, setActivationErr] = useState<string | null>(null);
+  const [profitTxs, setProfitTxs] = useState<{ id: string; amount: number; description: string | null; reference: string | null; created_at: string }[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawMomo, setWithdrawMomo] = useState("");
   const [withdrawNetwork, setWithdrawNetwork] = useState("mtn");
@@ -173,7 +177,7 @@ export default function Dashboard() {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(30),
-        supabase.from("site_settings").select("min_withdrawal").maybeSingle(),
+        supabase.from("site_settings").select("min_withdrawal,agent_signup_fee").maybeSingle(),
         supabase
           .from("orders")
           .select("id,reference,amount,status,recipient_phone,created_at,agent_profit,products(name,network)")
@@ -219,6 +223,7 @@ export default function Dashboard() {
       else if (present.has("airteltigo")) setBuyNetwork("airteltigo");
       else setBuyNetwork("other");
       if (ss.data?.min_withdrawal) setMinWithdrawal(Number(ss.data.min_withdrawal));
+      if (ss.data?.agent_signup_fee != null) setSignupFee(Number(ss.data.agent_signup_fee));
 
       if (s.data) {
         setSettingsName(s.data.display_name || "");
