@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatGHS, cn } from "@/lib/utils";
-import { initiatePaystackCheckout, payOrderFromWallet } from "@/lib/paystack";
+import { initiateAgentActivation, initiatePaystackCheckout, payOrderFromWallet } from "@/lib/paystack";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -133,6 +133,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   const [minWithdrawal, setMinWithdrawal] = useState(50);
+  const [signupFee, setSignupFee] = useState<number | null>(null);
+  const [activationBusy, setActivationBusy] = useState(false);
+  const [activationErr, setActivationErr] = useState<string | null>(null);
+  const [profitTxs, setProfitTxs] = useState<{ id: string; amount: number; description: string | null; reference: string | null; created_at: string }[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawMomo, setWithdrawMomo] = useState("");
   const [withdrawNetwork, setWithdrawNetwork] = useState("mtn");
@@ -173,7 +177,7 @@ export default function Dashboard() {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(30),
-        supabase.from("site_settings").select("min_withdrawal").maybeSingle(),
+        supabase.from("site_settings").select("min_withdrawal,agent_signup_fee").maybeSingle(),
         supabase
           .from("orders")
           .select("id,reference,amount,status,recipient_phone,created_at,agent_profit,products(name,network)")
@@ -219,6 +223,7 @@ export default function Dashboard() {
       else if (present.has("airteltigo")) setBuyNetwork("airteltigo");
       else setBuyNetwork("other");
       if (ss.data?.min_withdrawal) setMinWithdrawal(Number(ss.data.min_withdrawal));
+      if (ss.data?.agent_signup_fee != null) setSignupFee(Number(ss.data.agent_signup_fee));
 
       if (s.data) {
         setSettingsName(s.data.display_name || "");
@@ -228,6 +233,15 @@ export default function Dashboard() {
         setSettingsColor(s.data.theme_color || "#facc15");
         setSettingsActive(Boolean(s.data.is_active));
       }
+      const { data: profitRows } = await supabase
+        .from("wallet_transactions")
+        .select("id,amount,description,reference,created_at")
+        .eq("user_id", user.id)
+        .eq("type", "sale_profit")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setProfitTxs((profitRows as typeof profitTxs) || []);
+
       setLoading(false);
     })();
   }, [user]);
@@ -494,22 +508,71 @@ export default function Dashboard() {
                     Pay the one-time signup fee to unlock your mini-store and agent pricing.
                   </p>
                 </div>
-                <Button>Pay activation fee</Button>
+                <div className="text-right">
+                  <Button
+                    disabled={activationBusy || signupFee === null}
+                    onClick={async () => {
+                      setActivationErr(null);
+                      setActivationBusy(true);
+                      try {
+                        const res = await initiateAgentActivation(`${window.location.origin}/payment-result`);
+                        window.location.href = res.authorization_url;
+                      } catch (e) {
+                        setActivationErr(e instanceof Error ? e.message : String(e));
+                        setActivationBusy(false);
+                      }
+                    }}
+                  >
+                    {activationBusy ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      `Pay activation fee${signupFee !== null ? ` · ${formatGHS(signupFee)}` : ""}`
+                    )}
+                  </Button>
+                  {activationErr && <p className="mt-2 text-xs text-destructive">{activationErr}</p>}
+                </div>
               </CardContent>
             </Card>
           )}
 
           {(() => {
-            const profitOrders = storeOrders.filter((o) => Number(o.agent_profit || 0) > 0);
             const startOfToday = new Date();
             startOfToday.setHours(0, 0, 0, 0);
-            const totalProfits = profitOrders
-              .filter((o) => o.status === "delivered")
-              .reduce((sum, o) => sum + Number(o.agent_profit || 0), 0);
-            const todayProfits = profitOrders
-              .filter((o) => o.status === "delivered" && new Date(o.created_at) >= startOfToday)
-              .reduce((sum, o) => sum + Number(o.agent_profit || 0), 0);
-            const recentProfits = profitOrders.slice(0, 8);
+            // Profits come from actual wallet credits (type = sale_profit),
+            // so what is shown here is exactly what is withdrawable.
+            const totalProfits = profitTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+            const todayProfits = profitTxs
+              .filter((t) => new Date(t.created_at) >= startOfToday)
+              .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+            const creditedRefs = new Set(profitTxs.map((t) => t.reference).filter(Boolean) as string[]);
+            const pendingProfitOrders = storeOrders.filter(
+              (o) =>
+                Number(o.agent_profit || 0) > 0 &&
+                !creditedRefs.has(o.reference) &&
+                (o.status === "processing" || o.status === "failed")
+            );
+            const recentProfits = [
+              ...profitTxs.slice(0, 8).map((t) => ({
+                id: t.id,
+                key: `tx-${t.id}`,
+                title: t.description?.replace(/^Profit from sale /, "Store sale ") || "Store sale",
+                reference: t.reference || "",
+                created_at: t.created_at,
+                amount: Number(t.amount || 0),
+                credited: true as const,
+                label: "Credited",
+              })),
+              ...pendingProfitOrders.slice(0, 4).map((o) => ({
+                id: o.id,
+                key: `order-${o.id}`,
+                title: o.products?.name || "Store sale",
+                reference: o.reference,
+                created_at: o.created_at,
+                amount: Number(o.agent_profit || 0),
+                credited: false as const,
+                label: o.status === "failed" ? "Not credited" : "Pending",
+              })),
+            ].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
             return (
               <>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -535,25 +598,20 @@ export default function Dashboard() {
                     ) : (
                       <div className="divide-y">
                         {recentProfits.map((o) => {
-                          const badgeClass = ORDER_STATUS_COLOR[o.status];
-                          const statusLabel =
-                            o.status === "delivered"
-                              ? "Credited"
-                              : o.status === "processing"
-                              ? "Pending"
-                              : o.status === "failed"
-                              ? "Not credited"
-                              : "Refunded";
+                          const badgeClass = o.credited
+                            ? ORDER_STATUS_COLOR.delivered
+                            : o.label === "Not credited"
+                            ? ORDER_STATUS_COLOR.failed
+                            : ORDER_STATUS_COLOR.processing;
+                          const statusLabel = o.label;
                           return (
-                            <div key={o.id} className="flex items-center justify-between gap-3 py-3">
+                            <div key={o.key} className="flex items-center justify-between gap-3 py-3">
                               <div className="flex items-center gap-3 min-w-0">
                                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold/15 text-gold">
                                   <Coins className="h-4 w-4" />
                                 </span>
                                 <div className="min-w-0">
-                                  <div className="font-medium text-sm truncate">
-                                    {o.products?.name || "Store sale"}
-                                  </div>
+                                  <div className="font-medium text-sm truncate">{o.title}</div>
                                   <div className="text-xs text-muted-foreground truncate">
                                     <span className="font-mono">{o.reference}</span> ·{" "}
                                     {new Date(o.created_at).toLocaleString()}
@@ -567,11 +625,11 @@ export default function Dashboard() {
                                 <div
                                   className={cn(
                                     "font-bold tabular-nums",
-                                    o.status === "delivered" ? "text-success" : "text-muted-foreground"
+                                    o.credited ? "text-success" : "text-muted-foreground"
                                   )}
                                 >
-                                  {o.status === "delivered" ? "+" : ""}
-                                  {formatGHS(Number(o.agent_profit || 0))}
+                                  {o.credited ? "+" : ""}
+                                  {formatGHS(o.amount)}
                                 </div>
                               </div>
                             </div>
