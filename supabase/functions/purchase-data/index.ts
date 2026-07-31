@@ -45,6 +45,10 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Missing SWIFT_RESELLER_API_KEY environment variable." });
     }
 
+    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+
     const rawReq = await req.text();
     let reqBody: any = null;
     try {
@@ -56,10 +60,36 @@ Deno.serve(async (req) => {
     const retry = Boolean(reqBody?.retry);
     if (!order_id) return json({ success: false, error: "order_id required" });
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+    // --- Caller authorization -------------------------------------------------
+    // Only trusted internal callers (paystack-verify, wallet-purchase, which use
+    // the service role key) or a signed-in admin may trigger fulfillment.
+    const bearer = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+    let isInternal = bearer.length > 0 && bearer === SERVICE_ROLE_KEY;
+    let isAdmin = false;
+    if (!isInternal && bearer) {
+      const asUser = createClient(SUPABASE_URL, ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${bearer}` } },
+      });
+      const { data: userData } = await asUser.auth.getUser();
+      if (userData?.user) {
+        const { data: adminCheck } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userData.user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+        isAdmin = Boolean(adminCheck);
+      }
+    }
+    if (!isInternal && !isAdmin) {
+      return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     const { data: order, error: oErr } = await supabase
       .from("orders")
@@ -77,6 +107,24 @@ Deno.serve(async (req) => {
     if (!product || product.type !== "data") {
       return json({ success: true, skipped: true });
     }
+
+    // --- Payment gate ---------------------------------------------------------
+    // An order is only fulfilled when we can prove it was paid for, either from
+    // the wallet (recorded by wallet-purchase) or through Paystack (verified live
+    // against Paystack, never trusting anything stored by the client).
+    const paid = await isOrderPaid(supabase, order.reference, Number(order.amount));
+    if (!paid.paid) {
+      await supabase
+        .from("orders")
+        .update({ swift_status: "payment_required", notes: `Blocked: ${paid.reason}` })
+        .eq("id", order_id)
+        .is("swift_order_id", null);
+      return new Response(
+        JSON.stringify({ success: false, error: `Payment not confirmed for this order (${paid.reason}).` }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
 
     if (!retry && order.swift_order_id) {
       return json({
@@ -268,6 +316,48 @@ Deno.serve(async (req) => {
     return json({ success: false, error: msg });
   }
 });
+
+type PaidCheck = { paid: boolean; reason: string };
+
+async function isOrderPaid(supabase: any, reference: string, amount: number): Promise<PaidCheck> {
+  // 1) Wallet payment: only wallet-purchase (service role) can write these rows.
+  const { data: walletTx } = await supabase
+    .from("wallet_transactions")
+    .select("id, amount")
+    .eq("type", "purchase")
+    .like("description", `%${reference}%`)
+    .limit(1);
+  if (walletTx && walletTx.length > 0) {
+    return { paid: true, reason: "wallet" };
+  }
+
+  // 2) Paystack: verify live with Paystack; stored rows are never trusted.
+  const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
+  if (!PAYSTACK_SECRET_KEY) {
+    return { paid: false, reason: "no wallet payment and Paystack is not configured" };
+  }
+  try {
+    const resp = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      { headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` } }
+    );
+    const text = await resp.text();
+    let body: any = null;
+    try { body = text ? JSON.parse(text) : null; } catch { body = null; }
+    if (resp.ok && body?.status && body?.data?.status === "success") {
+      const paidMinor = Number(body.data.amount || 0);
+      const expectedMinor = Math.max(1, Math.round(amount * 100));
+      if (paidMinor + 1 >= expectedMinor) {
+        return { paid: true, reason: "paystack" };
+      }
+      return { paid: false, reason: `paid amount ${paidMinor / 100} is less than order amount ${amount}` };
+    }
+    return { paid: false, reason: "no successful Paystack transaction for this reference" };
+  } catch (err) {
+    return { paid: false, reason: `payment check failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
 
 function json(body: unknown) {
   return new Response(JSON.stringify(body), {
