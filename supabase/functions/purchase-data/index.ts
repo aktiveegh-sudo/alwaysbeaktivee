@@ -108,6 +108,24 @@ Deno.serve(async (req) => {
       return json({ success: true, skipped: true });
     }
 
+    // --- Payment gate ---------------------------------------------------------
+    // An order is only fulfilled when we can prove it was paid for, either from
+    // the wallet (recorded by wallet-purchase) or through Paystack (verified live
+    // against Paystack, never trusting anything stored by the client).
+    const paid = await isOrderPaid(supabase, order.reference, Number(order.amount));
+    if (!paid.paid) {
+      await supabase
+        .from("orders")
+        .update({ swift_status: "payment_required", notes: `Blocked: ${paid.reason}` })
+        .eq("id", order_id)
+        .is("swift_order_id", null);
+      return new Response(
+        JSON.stringify({ success: false, error: `Payment not confirmed for this order (${paid.reason}).` }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+
     if (!retry && order.swift_order_id) {
       return json({
         success: true,
