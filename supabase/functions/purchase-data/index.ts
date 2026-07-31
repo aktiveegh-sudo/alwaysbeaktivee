@@ -317,6 +317,48 @@ Deno.serve(async (req) => {
   }
 });
 
+type PaidCheck = { paid: boolean; reason: string };
+
+async function isOrderPaid(supabase: any, reference: string, amount: number): Promise<PaidCheck> {
+  // 1) Wallet payment: only wallet-purchase (service role) can write these rows.
+  const { data: walletTx } = await supabase
+    .from("wallet_transactions")
+    .select("id, amount")
+    .eq("type", "purchase")
+    .like("description", `%${reference}%`)
+    .limit(1);
+  if (walletTx && walletTx.length > 0) {
+    return { paid: true, reason: "wallet" };
+  }
+
+  // 2) Paystack: verify live with Paystack; stored rows are never trusted.
+  const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
+  if (!PAYSTACK_SECRET_KEY) {
+    return { paid: false, reason: "no wallet payment and Paystack is not configured" };
+  }
+  try {
+    const resp = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      { headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` } }
+    );
+    const text = await resp.text();
+    let body: any = null;
+    try { body = text ? JSON.parse(text) : null; } catch { body = null; }
+    if (resp.ok && body?.status && body?.data?.status === "success") {
+      const paidMinor = Number(body.data.amount || 0);
+      const expectedMinor = Math.max(1, Math.round(amount * 100));
+      if (paidMinor + 1 >= expectedMinor) {
+        return { paid: true, reason: "paystack" };
+      }
+      return { paid: false, reason: `paid amount ${paidMinor / 100} is less than order amount ${amount}` };
+    }
+    return { paid: false, reason: "no successful Paystack transaction for this reference" };
+  } catch (err) {
+    return { paid: false, reason: `payment check failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+
 function json(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
