@@ -45,6 +45,10 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Missing SWIFT_RESELLER_API_KEY environment variable." });
     }
 
+    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+
     const rawReq = await req.text();
     let reqBody: any = null;
     try {
@@ -56,10 +60,36 @@ Deno.serve(async (req) => {
     const retry = Boolean(reqBody?.retry);
     if (!order_id) return json({ success: false, error: "order_id required" });
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+    // --- Caller authorization -------------------------------------------------
+    // Only trusted internal callers (paystack-verify, wallet-purchase, which use
+    // the service role key) or a signed-in admin may trigger fulfillment.
+    const bearer = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+    let isInternal = bearer.length > 0 && bearer === SERVICE_ROLE_KEY;
+    let isAdmin = false;
+    if (!isInternal && bearer) {
+      const asUser = createClient(SUPABASE_URL, ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${bearer}` } },
+      });
+      const { data: userData } = await asUser.auth.getUser();
+      if (userData?.user) {
+        const { data: adminCheck } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userData.user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+        isAdmin = Boolean(adminCheck);
+      }
+    }
+    if (!isInternal && !isAdmin) {
+      return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     const { data: order, error: oErr } = await supabase
       .from("orders")
