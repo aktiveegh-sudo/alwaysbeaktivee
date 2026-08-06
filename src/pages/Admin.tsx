@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +10,9 @@ import {
   Plus, Trash2, LayoutDashboard, Users, TrendingUp, Clock,
   CheckCircle2, ShieldCheck, ShieldOff, CircleDollarSign,
   RefreshCw, X, Phone, Calendar, Hash, CreditCard, Store as StoreIcon, User as UserIcon,
+  CopyCheck, AlertTriangle,
 } from "lucide-react";
+
 import { toast } from "sonner";
 
 type Tab = "overview" | "products" | "orders" | "withdrawals" | "users" | "settings";
@@ -668,7 +670,7 @@ function OrdersTab() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | OrderStatus>("all");
+  const [filter, setFilter] = useState<"all" | OrderStatus | "duplicates">("all");
 
   const load = async () => {
     setLoading(true);
@@ -706,6 +708,55 @@ function OrdersTab() {
     load();
   }, []);
 
+  // Flag duplicate orders: same recipient number within 5 minutes of each other.
+  // "Sent twice" means more than one of them actually reached the provider.
+  const dupMap = useMemo(() => {
+    const WINDOW = 5 * 60 * 1000;
+    const map = new Map<string, { refs: string[]; sentTwice: boolean; sameProduct: boolean }>();
+    const byPhone = new Map<string, any[]>();
+    for (const o of items) {
+      const key = String(o.recipient_phone || "");
+      if (!key) continue;
+      if (!byPhone.has(key)) byPhone.set(key, []);
+      byPhone.get(key)!.push(o);
+    }
+    for (const list of byPhone.values()) {
+      const sorted = [...list].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      let group: any[] = [];
+      const flush = () => {
+        if (group.length > 1) {
+          const sentTwice = group.filter((g) => g.swift_order_id).length > 1;
+          const sameProduct = new Set(group.map((g) => g.product_id)).size < group.length;
+          for (const g of group) {
+            map.set(g.id, {
+              refs: group.filter((x) => x.id !== g.id).map((x) => x.reference),
+              sentTwice,
+              sameProduct,
+            });
+          }
+        }
+        group = [];
+      };
+      for (const o of sorted) {
+        if (
+          group.length &&
+          new Date(o.created_at).getTime() - new Date(group[group.length - 1].created_at).getTime() > WINDOW
+        ) {
+          flush();
+        }
+        group.push(o);
+      }
+      flush();
+    }
+    return map;
+  }, [items]);
+
+  const dupCount = dupMap.size;
+
+
+
   const setStatus = async (id: string, status: OrderStatus) => {
     await supabase.from("orders").update({ status }).eq("id", id);
     load();
@@ -738,23 +789,33 @@ function OrdersTab() {
   const sourceOf = (o: any) =>
     o.store_owner_id ? "Agent store" : o.buyer_user_id ? "Dashboard" : "Main site";
 
-  const filtered = filter === "all" ? items : items.filter((o) => o.status === filter);
+  const filtered =
+    filter === "all"
+      ? items
+      : filter === "duplicates"
+        ? items.filter((o) => dupMap.has(o.id))
+        : items.filter((o) => o.status === filter);
 
   if (loading) return <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-10" />;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {(["all", "processing", "delivered", "failed", "refunded"] as const).map((s) => (
+        {(["all", "processing", "delivered", "failed", "refunded", "duplicates"] as const).map((s) => (
           <button
             key={s}
             onClick={() => setFilter(s as any)}
             className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-semibold uppercase border",
-              filter === s ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:bg-secondary"
+              "rounded-full px-3 py-1.5 text-xs font-semibold uppercase border inline-flex items-center gap-1.5",
+              filter === s ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:bg-secondary",
+              s === "duplicates" && filter !== s && dupCount > 0 && "border-gold/50 text-gold"
             )}
           >
+            {s === "duplicates" && <CopyCheck className="h-3.5 w-3.5" />}
             {s}
+            {s === "duplicates" && dupCount > 0 && (
+              <span className="rounded-full bg-gold/20 text-gold px-1.5 text-[10px]">{dupCount}</span>
+            )}
           </button>
         ))}
         <Button variant="outline" size="sm" className="ml-auto" onClick={load}>
@@ -762,15 +823,38 @@ function OrdersTab() {
         </Button>
       </div>
 
+      {filter === "duplicates" && dupCount > 0 && (
+        <div className="rounded-xl border border-gold/40 bg-gold/10 p-3 text-xs text-gold flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            {dupCount} order{dupCount === 1 ? "" : "s"} were placed to the same number within 5 minutes of
+            another order. Orders marked <strong>SENT TWICE</strong> reached the provider more than once and may
+            need a refund.
+          </span>
+        </div>
+      )}
+
       {filtered.length === 0 && <p className="text-muted-foreground text-center py-10">No orders.</p>}
       {filtered.map((o) => {
         const isFailed = o.status === "failed";
         const insufficient = isFailed && /insufficient|balance|funds/i.test(String(o.notes || ""));
+        const dup = dupMap.get(o.id);
         return (
-          <Card key={o.id} className="hover:border-primary/40 transition-colors">
+          <Card key={o.id} className={cn("hover:border-primary/40 transition-colors", dup && "border-gold/50")}>
             <CardContent className="p-4 flex flex-wrap items-center gap-3">
               <button onClick={() => setSelected(o)} className="flex-1 min-w-[220px] text-left">
-                <div className="font-mono text-sm font-bold">{o.reference}</div>
+                <div className="font-mono text-sm font-bold flex flex-wrap items-center gap-2">
+                  {o.reference}
+                  {dup && (
+                    <span className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide inline-flex items-center gap-1",
+                      dup.sentTwice ? "bg-destructive/15 text-destructive" : "bg-gold/15 text-gold"
+                    )}>
+                      <CopyCheck className="h-3 w-3" />
+                      {dup.sentTwice ? "Sent twice" : "Duplicate"}
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   {o.products?.name || "—"} · {o.recipient_phone} · {formatGHS(o.amount)}
                 </div>
@@ -778,8 +862,10 @@ function OrdersTab() {
                   <span className="inline-flex items-center gap-1"><StoreIcon className="h-3 w-3" /> {sourceOf(o)}</span>
                   <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> {new Date(o.created_at).toLocaleString()}</span>
                   {o.swift_order_id && <span className="inline-flex items-center gap-1 text-success"><CheckCircle2 className="h-3 w-3" /> Swift</span>}
+                  {dup && <span className="text-gold">Also: {dup.refs.join(", ")}</span>}
                 </div>
               </button>
+
               <span className={cn("rounded-full px-3 py-1 text-xs font-semibold uppercase", STATUS_COLORS[o.status as OrderStatus])}>
                 {o.status}
               </span>
@@ -816,6 +902,7 @@ function OrdersTab() {
           onRetry={() => retryOrder(selected)}
           retrying={retrying === selected.id}
           source={sourceOf(selected)}
+          duplicate={dupMap.get(selected.id) || null}
         />
       )}
     </div>
@@ -823,8 +910,11 @@ function OrdersTab() {
 }
 
 function OrderDetailDrawer({
-  order, onClose, onRetry, retrying, source,
-}: { order: any; onClose: () => void; onRetry: () => void; retrying: boolean; source: string }) {
+  order, onClose, onRetry, retrying, source, duplicate,
+}: {
+  order: any; onClose: () => void; onRetry: () => void; retrying: boolean; source: string;
+  duplicate?: { refs: string[]; sentTwice: boolean; sameProduct: boolean } | null;
+}) {
   const payment = order.payment;
   const isFailed = order.status === "failed";
   return (
@@ -861,7 +951,37 @@ function OrderDetailDrawer({
                 Payment: {payment.status}
               </span>
             )}
+            {duplicate && (
+              <span className={cn(
+                "rounded-full px-3 py-1 text-xs font-semibold uppercase inline-flex items-center gap-1",
+                duplicate.sentTwice ? "bg-destructive/15 text-destructive" : "bg-gold/15 text-gold"
+              )}>
+                <CopyCheck className="h-3.5 w-3.5" />
+                {duplicate.sentTwice ? "Sent twice" : "Duplicate"}
+              </span>
+            )}
           </div>
+
+          {duplicate && (
+            <div className={cn(
+              "rounded-xl border p-3 text-xs space-y-1",
+              duplicate.sentTwice ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-gold/40 bg-gold/10 text-gold"
+            )}>
+              <div className="font-semibold uppercase tracking-wide flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" /> Duplicate order detected
+              </div>
+              <div>
+                Placed within 5 minutes of {duplicate.refs.length} other order
+                {duplicate.refs.length === 1 ? "" : "s"} to {order.recipient_phone}: {duplicate.refs.join(", ")}
+              </div>
+              {duplicate.sameProduct && <div>Same data package was ordered more than once.</div>}
+              {duplicate.sentTwice
+                ? <div>More than one of these reached the provider — review for a possible refund.</div>
+                : <div>Only one of these reached the provider.</div>}
+            </div>
+          )}
+
+
 
           <Section title="Product">
             <Row icon={Package} label="Name" value={order.products?.name || "—"} />
