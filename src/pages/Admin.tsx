@@ -670,7 +670,7 @@ function OrdersTab() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | OrderStatus>("all");
+  const [filter, setFilter] = useState<"all" | OrderStatus | "duplicates">("all");
 
   const load = async () => {
     setLoading(true);
