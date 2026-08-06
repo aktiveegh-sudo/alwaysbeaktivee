@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
 
     // Atomic idempotency claim: only proceed if we can flip swift_status to 'submitting'
     // for a row that has no swift_order_id yet. Concurrent callers match 0 rows and bail.
-    if (!retry) {
+    {
       const { data: claimed, error: claimErr } = await supabase
         .from("orders")
         .update({ swift_status: "processing" })
