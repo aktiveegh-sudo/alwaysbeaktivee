@@ -126,7 +126,9 @@ Deno.serve(async (req) => {
     }
 
 
-    if (!retry && order.swift_order_id) {
+    if (order.swift_order_id && (!retry || order.status !== "failed")) {
+      // Never send the same order to the provider twice. Even an admin retry is
+      // only allowed for an order that failed and was not accepted downstream.
       return json({
         success: true,
         skipped: true,
@@ -135,6 +137,7 @@ Deno.serve(async (req) => {
         swift_status: order.swift_status,
       });
     }
+
 
     const network = mapNetwork(product.network);
     const size_gb = toSizeGb(product.data_volume_mb);
