@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +10,9 @@ import {
   Plus, Trash2, LayoutDashboard, Users, TrendingUp, Clock,
   CheckCircle2, ShieldCheck, ShieldOff, CircleDollarSign,
   RefreshCw, X, Phone, Calendar, Hash, CreditCard, Store as StoreIcon, User as UserIcon,
+  CopyCheck, AlertTriangle,
 } from "lucide-react";
+
 import { toast } from "sonner";
 
 type Tab = "overview" | "products" | "orders" | "withdrawals" | "users" | "settings";
