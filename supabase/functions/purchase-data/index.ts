@@ -157,27 +157,31 @@ Deno.serve(async (req) => {
       return json({ success: false, error: `Unsupported data size: ${product.data_volume_mb} MB` });
     }
 
-    // 5-minute cooldown per recipient phone (skip on retry of same order)
+    // 5-minute cooldown per recipient phone, measured from when a previous order
+    // was actually submitted to the provider (updated_at), not when it was created.
+    // Skipped only for admin retries of the same order.
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const { data: recent } = await supabase
       .from("orders")
-      .select("id, reference, created_at, status, swift_order_id")
+      .select("id, reference, created_at, updated_at, status, swift_order_id")
       .eq("recipient_phone", order.recipient_phone)
       .neq("id", order_id)
-      .gte("created_at", fiveMinAgo)
       .not("swift_order_id", "is", null)
       .in("status", ["processing", "delivered"])
+      .gte("updated_at", fiveMinAgo)
+      .order("updated_at", { ascending: false })
       .limit(1);
-    if (recent && recent.length > 0) {
+    if (!retry && recent && recent.length > 0) {
       const prev = recent[0] as any;
-      const secsAgo = Math.floor((Date.now() - new Date(prev.created_at).getTime()) / 1000);
+      const prevAt = new Date(prev.updated_at || prev.created_at).getTime();
+      const secsAgo = Math.floor((Date.now() - prevAt) / 1000);
       const waitSecs = Math.max(0, 300 - secsAgo);
       const mins = Math.ceil(waitSecs / 60);
       await supabase.from("orders").update({
         status: "failed",
         swift_status: "cooldown_blocked",
         notes: `Cooldown: previous order ${prev.reference} to same number ${secsAgo}s ago`,
-      }).eq("id", order_id);
+      }).eq("id", order_id).is("swift_order_id", null);
       return json({
         success: false,
         error: `Please wait ${mins} minute${mins === 1 ? "" : "s"} before ordering to ${order.recipient_phone} again. Another order was just placed.`,
@@ -185,6 +189,7 @@ Deno.serve(async (req) => {
         wait_seconds: waitSecs,
       });
     }
+
 
     // Atomic idempotency claim: only proceed if we can flip swift_status to 'submitting'
     // for a row that has no swift_order_id yet. Concurrent callers match 0 rows and bail.
