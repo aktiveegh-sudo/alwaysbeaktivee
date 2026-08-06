@@ -708,6 +708,55 @@ function OrdersTab() {
     load();
   }, []);
 
+  // Flag duplicate orders: same recipient number within 5 minutes of each other.
+  // "Sent twice" means more than one of them actually reached the provider.
+  const dupMap = useMemo(() => {
+    const WINDOW = 5 * 60 * 1000;
+    const map = new Map<string, { refs: string[]; sentTwice: boolean; sameProduct: boolean }>();
+    const byPhone = new Map<string, any[]>();
+    for (const o of items) {
+      const key = String(o.recipient_phone || "");
+      if (!key) continue;
+      if (!byPhone.has(key)) byPhone.set(key, []);
+      byPhone.get(key)!.push(o);
+    }
+    for (const list of byPhone.values()) {
+      const sorted = [...list].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      let group: any[] = [];
+      const flush = () => {
+        if (group.length > 1) {
+          const sentTwice = group.filter((g) => g.swift_order_id).length > 1;
+          const sameProduct = new Set(group.map((g) => g.product_id)).size < group.length;
+          for (const g of group) {
+            map.set(g.id, {
+              refs: group.filter((x) => x.id !== g.id).map((x) => x.reference),
+              sentTwice,
+              sameProduct,
+            });
+          }
+        }
+        group = [];
+      };
+      for (const o of sorted) {
+        if (
+          group.length &&
+          new Date(o.created_at).getTime() - new Date(group[group.length - 1].created_at).getTime() > WINDOW
+        ) {
+          flush();
+        }
+        group.push(o);
+      }
+      flush();
+    }
+    return map;
+  }, [items]);
+
+  const dupCount = dupMap.size;
+
+
+
   const setStatus = async (id: string, status: OrderStatus) => {
     await supabase.from("orders").update({ status }).eq("id", id);
     load();
