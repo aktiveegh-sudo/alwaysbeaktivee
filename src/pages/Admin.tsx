@@ -902,6 +902,7 @@ function OrdersTab() {
           onRetry={() => retryOrder(selected)}
           retrying={retrying === selected.id}
           source={sourceOf(selected)}
+          duplicate={dupMap.get(selected.id) || null}
         />
       )}
     </div>
@@ -909,8 +910,11 @@ function OrdersTab() {
 }
 
 function OrderDetailDrawer({
-  order, onClose, onRetry, retrying, source,
-}: { order: any; onClose: () => void; onRetry: () => void; retrying: boolean; source: string }) {
+  order, onClose, onRetry, retrying, source, duplicate,
+}: {
+  order: any; onClose: () => void; onRetry: () => void; retrying: boolean; source: string;
+  duplicate?: { refs: string[]; sentTwice: boolean; sameProduct: boolean } | null;
+}) {
   const payment = order.payment;
   const isFailed = order.status === "failed";
   return (
@@ -947,7 +951,37 @@ function OrderDetailDrawer({
                 Payment: {payment.status}
               </span>
             )}
+            {duplicate && (
+              <span className={cn(
+                "rounded-full px-3 py-1 text-xs font-semibold uppercase inline-flex items-center gap-1",
+                duplicate.sentTwice ? "bg-destructive/15 text-destructive" : "bg-gold/15 text-gold"
+              )}>
+                <CopyCheck className="h-3.5 w-3.5" />
+                {duplicate.sentTwice ? "Sent twice" : "Duplicate"}
+              </span>
+            )}
           </div>
+
+          {duplicate && (
+            <div className={cn(
+              "rounded-xl border p-3 text-xs space-y-1",
+              duplicate.sentTwice ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-gold/40 bg-gold/10 text-gold"
+            )}>
+              <div className="font-semibold uppercase tracking-wide flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" /> Duplicate order detected
+              </div>
+              <div>
+                Placed within 5 minutes of {duplicate.refs.length} other order
+                {duplicate.refs.length === 1 ? "" : "s"} to {order.recipient_phone}: {duplicate.refs.join(", ")}
+              </div>
+              {duplicate.sameProduct && <div>Same data package was ordered more than once.</div>}
+              {duplicate.sentTwice
+                ? <div>More than one of these reached the provider — review for a possible refund.</div>
+                : <div>Only one of these reached the provider.</div>}
+            </div>
+          )}
+
+
 
           <Section title="Product">
             <Row icon={Package} label="Name" value={order.products?.name || "—"} />
