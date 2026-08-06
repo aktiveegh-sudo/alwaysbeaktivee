@@ -789,23 +789,33 @@ function OrdersTab() {
   const sourceOf = (o: any) =>
     o.store_owner_id ? "Agent store" : o.buyer_user_id ? "Dashboard" : "Main site";
 
-  const filtered = filter === "all" ? items : items.filter((o) => o.status === filter);
+  const filtered =
+    filter === "all"
+      ? items
+      : filter === "duplicates"
+        ? items.filter((o) => dupMap.has(o.id))
+        : items.filter((o) => o.status === filter);
 
   if (loading) return <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-10" />;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {(["all", "processing", "delivered", "failed", "refunded"] as const).map((s) => (
+        {(["all", "processing", "delivered", "failed", "refunded", "duplicates"] as const).map((s) => (
           <button
             key={s}
             onClick={() => setFilter(s as any)}
             className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-semibold uppercase border",
-              filter === s ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:bg-secondary"
+              "rounded-full px-3 py-1.5 text-xs font-semibold uppercase border inline-flex items-center gap-1.5",
+              filter === s ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:bg-secondary",
+              s === "duplicates" && filter !== s && dupCount > 0 && "border-gold/50 text-gold"
             )}
           >
+            {s === "duplicates" && <CopyCheck className="h-3.5 w-3.5" />}
             {s}
+            {s === "duplicates" && dupCount > 0 && (
+              <span className="rounded-full bg-gold/20 text-gold px-1.5 text-[10px]">{dupCount}</span>
+            )}
           </button>
         ))}
         <Button variant="outline" size="sm" className="ml-auto" onClick={load}>
@@ -813,15 +823,38 @@ function OrdersTab() {
         </Button>
       </div>
 
+      {filter === "duplicates" && dupCount > 0 && (
+        <div className="rounded-xl border border-gold/40 bg-gold/10 p-3 text-xs text-gold flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            {dupCount} order{dupCount === 1 ? "" : "s"} were placed to the same number within 5 minutes of
+            another order. Orders marked <strong>SENT TWICE</strong> reached the provider more than once and may
+            need a refund.
+          </span>
+        </div>
+      )}
+
       {filtered.length === 0 && <p className="text-muted-foreground text-center py-10">No orders.</p>}
       {filtered.map((o) => {
         const isFailed = o.status === "failed";
         const insufficient = isFailed && /insufficient|balance|funds/i.test(String(o.notes || ""));
+        const dup = dupMap.get(o.id);
         return (
-          <Card key={o.id} className="hover:border-primary/40 transition-colors">
+          <Card key={o.id} className={cn("hover:border-primary/40 transition-colors", dup && "border-gold/50")}>
             <CardContent className="p-4 flex flex-wrap items-center gap-3">
               <button onClick={() => setSelected(o)} className="flex-1 min-w-[220px] text-left">
-                <div className="font-mono text-sm font-bold">{o.reference}</div>
+                <div className="font-mono text-sm font-bold flex flex-wrap items-center gap-2">
+                  {o.reference}
+                  {dup && (
+                    <span className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide inline-flex items-center gap-1",
+                      dup.sentTwice ? "bg-destructive/15 text-destructive" : "bg-gold/15 text-gold"
+                    )}>
+                      <CopyCheck className="h-3 w-3" />
+                      {dup.sentTwice ? "Sent twice" : "Duplicate"}
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   {o.products?.name || "—"} · {o.recipient_phone} · {formatGHS(o.amount)}
                 </div>
@@ -829,8 +862,10 @@ function OrdersTab() {
                   <span className="inline-flex items-center gap-1"><StoreIcon className="h-3 w-3" /> {sourceOf(o)}</span>
                   <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> {new Date(o.created_at).toLocaleString()}</span>
                   {o.swift_order_id && <span className="inline-flex items-center gap-1 text-success"><CheckCircle2 className="h-3 w-3" /> Swift</span>}
+                  {dup && <span className="text-gold">Also: {dup.refs.join(", ")}</span>}
                 </div>
               </button>
+
               <span className={cn("rounded-full px-3 py-1 text-xs font-semibold uppercase", STATUS_COLORS[o.status as OrderStatus])}>
                 {o.status}
               </span>
